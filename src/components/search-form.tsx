@@ -2,32 +2,61 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CONFIRMATION_THRESHOLD, DEV_DEFAULT_LIMIT, MAX_LIMIT } from "@/lib/search-limits";
 
-interface SearchResult {
-  leadCount: number;
-  industryMatched: boolean;
+interface SearchProgress {
+  id: number;
+  status: string;
+  resultsFound: number;
+  resultsProcessed: number;
+  resultsFailed: number;
+  industry: string;
+  location: string;
 }
 
 export function SearchForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [industry, setIndustry] = useState("");
   const [location, setLocation] = useState("");
   const [limit, setLimit] = useState(DEV_DEFAULT_LIMIT);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SearchResult | null>(null);
+  const [activeSearchId, setActiveSearchId] = useState<number | null>(null);
 
   const needsConfirmation = limit > CONFIRMATION_THRESHOLD;
+
+  const { data: progress } = useQuery<SearchProgress>({
+    queryKey: ["search-progress", activeSearchId],
+    queryFn: async () => {
+      const res = await fetch(`/api/search/${activeSearchId}`);
+      if (!res.ok) throw new Error("Failed to load search progress.");
+      return res.json();
+    },
+    enabled: activeSearchId !== null,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 1000;
+      const done = data.resultsFound === 0 || data.resultsProcessed >= data.resultsFound;
+      if (done) {
+        router.refresh();
+        queryClient.invalidateQueries({ queryKey: ["leads"] });
+        queryClient.invalidateQueries({ queryKey: ["stats"] });
+        return false;
+      }
+      return 1000;
+    },
+  });
 
   async function runSearch(allowLarge: boolean) {
     setSubmitting(true);
     setError(null);
-    setResult(null);
+    setActiveSearchId(null);
 
     const res = await fetch("/api/search", {
       method: "POST",
@@ -43,7 +72,7 @@ export function SearchForm() {
       return;
     }
 
-    setResult({ leadCount: body.leadCount, industryMatched: body.industryMatched });
+    setActiveSearchId(body.search.id);
     router.refresh();
   }
 
@@ -60,6 +89,8 @@ export function SearchForm() {
     }
     void runSearch(false);
   }
+
+  const isProcessing = progress && progress.resultsProcessed < progress.resultsFound;
 
   return (
     <Card>
@@ -103,7 +134,7 @@ export function SearchForm() {
               className="w-24"
             />
           </div>
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting || Boolean(isProcessing)}>
             {submitting ? "Searching…" : "Search"}
           </Button>
         </form>
@@ -113,10 +144,15 @@ export function SearchForm() {
           </p>
         )}
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-        {result && (
+        {progress && (
           <p className="mt-2 text-sm text-muted-foreground">
-            Found {result.leadCount} lead{result.leadCount === 1 ? "" : "s"}
-            {!result.industryMatched && " (industry term wasn't in our tag map — used a broader name search)"}.
+            {isProcessing
+              ? `Found ${progress.resultsFound} leads — analyzing ${progress.resultsProcessed}/${progress.resultsFound}…`
+              : progress.resultsFound === 0
+                ? "No leads found for this search."
+                : `Done — analyzed ${progress.resultsProcessed}/${progress.resultsFound} lead${progress.resultsFound === 1 ? "" : "s"}` +
+                  (progress.resultsFailed > 0 ? ` (${progress.resultsFailed} failed)` : "") +
+                  "."}
           </p>
         )}
       </CardContent>

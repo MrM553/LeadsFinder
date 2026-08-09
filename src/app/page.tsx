@@ -54,6 +54,8 @@ export default async function DashboardPage() {
                     </span>
                     <span className="text-muted-foreground">
                       {s.status} · {s.resultsFound} result{s.resultsFound === 1 ? "" : "s"} ·{" "}
+                      {s.resultsProcessed}/{s.resultsFound} analyzed
+                      {s.resultsFailed > 0 ? ` (${s.resultsFailed} failed)` : ""} ·{" "}
                       {s.createdAt.toLocaleString("de-DE")}
                     </span>
                   </li>

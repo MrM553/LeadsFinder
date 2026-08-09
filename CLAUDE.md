@@ -118,6 +118,7 @@ LeadFinder never sends a cold email, SMS, WhatsApp message, LinkedIn message, or
 - API route handlers get at least a basic integration test (auth required, input validation, happy path).
 - Do not chase 100% coverage; prioritize the scoring engine, dedup logic, and auth gates.
 - Before marking a milestone done, run the test suite and confirm it's green.
+- **Tests never touch the dev/seed database.** `vitest.setup.ts` forces `DATABASE_URL` to a separate `data/leadfinder.test.db`, wipes it, and re-applies migrations before each test file runs. This was a real bug caught during Milestone 6 (test-inserted fixtures were showing up in the dev dashboard) — if you ever see unfamiliar "Testberuf"/similar rows in dev data, check that setup file is still wired up.
 
 ## 11. Deployment Conventions
 

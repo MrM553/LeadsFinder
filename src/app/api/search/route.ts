@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiSession } from "@/server/auth/api-guard";
 import { discoverLeads, SearchLimitError } from "@/server/search/discover";
-import { analyzeWebsite } from "@/server/analysis/analyze";
-import { applyAnalysisToLead } from "@/server/db/leads";
-import { scoreAndSaveLead } from "@/server/scoring/apply";
+import { processLeadsForSearch } from "@/server/search/process-leads";
 import { MAX_LIMIT } from "@/lib/search-limits";
 
 const searchSchema = z.object({
@@ -27,16 +25,14 @@ export async function POST(request: Request) {
   try {
     const result = await discoverLeads(parsed.data);
 
-    // Analyze + score each discovered lead synchronously — fine at the
-    // dev-limit scale enforced above. Milestone 6 adds background
-    // processing and progress tracking for larger runs.
-    for (const lead of result.leads) {
-      if (lead.websiteUrl) {
-        const analysis = await analyzeWebsite(lead.websiteUrl);
-        applyAnalysisToLead(lead.id, analysis);
-      }
-      scoreAndSaveLead(lead.id);
-    }
+    // Analysis + scoring run detached from this request so the response
+    // isn't held open for the whole batch — the client polls
+    // GET /api/search/[id] for progress. (On Cloudflare Workers this call
+    // will need wrapping in ctx.waitUntil(); see process-leads.ts.)
+    void processLeadsForSearch(
+      result.search.id,
+      result.leads.map((l) => l.id)
+    );
 
     return NextResponse.json({
       search: result.search,

@@ -9,6 +9,10 @@ export const searches = sqliteTable("searches", {
   requestedCount: integer("requested_count").notNull(),
   status: text("status").$type<SearchStatus>().notNull().default("QUEUED"),
   resultsFound: integer("results_found").notNull().default(0),
+  // Analysis/scoring processing progress — distinct from `status`, which
+  // only tracks the discovery phase (see CLAUDE.md's search-jobs notes).
+  resultsProcessed: integer("results_processed").notNull().default(0),
+  resultsFailed: integer("results_failed").notNull().default(0),
   errorMessage: text("error_message"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()

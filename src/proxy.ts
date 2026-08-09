@@ -4,10 +4,10 @@ import { SESSION_COOKIE_NAME } from "@/server/auth/constants";
 /**
  * Cheap presence-only redirect for UX. The real authorization check (full
  * HMAC signature + expiry verification) happens server-side in getSession()
- * on every protected page/route — this middleware is not the security
- * boundary, just a fast redirect.
+ * on every protected page/route — this proxy is not the security boundary,
+ * just a fast redirect.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const hasSession = request.cookies.has(SESSION_COOKIE_NAME);
   const { pathname } = request.nextUrl;
 

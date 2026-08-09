@@ -70,11 +70,11 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [x] All dashboard routes behind auth
 
 ## Milestone 6 — Search Jobs
-- [ ] Search progress tracking (queued/running/done/failed) surfaced in UI
-- [ ] Background processing introduced only if request-time processing proves too slow for ~100 results
-- [ ] Retry handling for failed per-lead analysis (bounded, not infinite)
-- [ ] Failed-request visibility (which leads failed analysis and why)
-- [ ] Enforce configured result limit end-to-end
+- [x] Search progress tracking (queued/running/done/failed) surfaced in UI
+- [x] Background processing (discovery is synchronous; analysis+scoring run detached, polled via `/api/search/[id]`)
+- [x] Retry handling for failed per-lead analysis (bounded, not infinite)
+- [x] Failed-request visibility (which leads failed analysis and why)
+- [x] Enforce configured result limit end-to-end
 
 ## Milestone 7 — Production
 - [ ] Investigate current recommended Cloudflare architecture for Next.js at time of implementation
@@ -128,3 +128,14 @@ Pages: `/` (stats + search form with the same confirmation gate as the API), `/l
 Fixed two issues found during browser testing: (1) `src/proxy.ts` must not import anything that pulls in `node:crypto` — it runs on the Edge runtime, unlike route handlers/server components — so the session cookie name was split into a crypto-free `constants.ts`; (2) Base UI's `Select.Value` doesn't auto-derive a label from `SelectItem` children for a dynamic value, so it now takes explicit children. Verified live in-browser end-to-end: login, dashboard stats, a real "Steuerberater München" search (5 results) that correctly discovered/analyzed/scored real businesses and updated the table, status change and note-add via direct API calls (the Select's portal popup doesn't work with this session's synthetic-click testing tool, but the API layer and rendered options were verified separately), logout, and a 401 on an unauthenticated API call. Renamed `middleware.ts` → `proxy.ts` per Next.js 16's current convention (resolved a build deprecation warning).
 
 **Manual configuration needed:** the dev `.env.local` has a throwaway password (`dev-only-password-change-me`, username `admin`) — change `DASHBOARD_USERNAME`/`DASHBOARD_PASSWORD_HASH` before any real use, and never commit `.env.local` (already gitignored).
+
+### 2026-08-09 — Milestone 6 complete
+The POST `/api/search` route no longer awaits per-lead analysis+scoring in the request — it returns as soon as discovery finishes, and `processLeadsForSearch` (src/server/search/process-leads.ts) runs detached, wrapping each lead's analyze+score in its own try/catch so one broken site can't abort the batch. Progress (`resultsFound`/`resultsProcessed`/`resultsFailed`) is written to the `searches` row as it goes (migration 0003) and exposed via `GET /api/search/[id]`; the dashboard's `SearchForm` polls it every second until done and shows "analyzing N/M…" then a final failure count. Recent-searches list on the dashboard shows the same. 2 new unit tests confirm a lead whose analysis throws doesn't stop the rest of the batch and still gets a fallback score from whatever signals it has.
+
+Also fixed a real bug found while testing this: the vitest suite was writing to the *same* SQLite file as the dev server (both read `DATABASE_URL` from `.env.local`), so running `npm test` was leaving fake "Testberuf/Teststadt" rows in the real dev dashboard. `vitest.setup.ts` now forces an isolated `data/leadfinder.test.db`, wiped and re-migrated before each test file — see CLAUDE.md §10.
+
+Also renamed `src/middleware.ts` → `src/proxy.ts`'s exported function from `middleware` to `proxy` — the earlier Milestone 5 rename only moved the file; Next.js 16 actually requires the export itself to be named `proxy` (or `default`), which a clean production build caught.
+
+**Note for Milestone 7:** `processLeadsForSearch` is fire-and-forget Node.js code, which only works because `next dev`/`next start` keep the process alive after the response is sent. On Cloudflare Workers the request context is torn down once the response returns unless execution is explicitly extended — the `POST /api/search` handler will need to wrap that call in `ctx.waitUntil()` (or move to a Cloudflare Queue if runs start exceeding a Worker's execution time limit). Flagged in a code comment at the call site already.
+
+Nothing for the user to configure manually.
