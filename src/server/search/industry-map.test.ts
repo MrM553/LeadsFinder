@@ -25,4 +25,25 @@ describe("resolveIndustryTags", () => {
     expect(result.matched).toBe(false);
     expect(result.tags).toEqual([]);
   });
+
+  it("maps newly-added terms outside the original trades list", () => {
+    expect(resolveIndustryTags("Zahnarzt")).toEqual({
+      matched: true,
+      tags: [{ key: "amenity", value: "dentist" }],
+    });
+    expect(resolveIndustryTags("Friseur")).toEqual({
+      matched: true,
+      tags: [{ key: "shop", value: "hairdresser" }],
+    });
+    expect(resolveIndustryTags("Fahrschule")).toEqual({
+      matched: true,
+      tags: [{ key: "amenity", value: "driving_school" }],
+    });
+  });
+
+  it("ignores spaces/punctuation when normalizing", () => {
+    const result = resolveIndustryTags("Kfz-Werkstatt");
+    expect(result.matched).toBe(true);
+    expect(result.tags).toEqual([{ key: "shop", value: "car_repair" }]);
+  });
 });

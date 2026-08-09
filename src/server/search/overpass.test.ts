@@ -22,9 +22,9 @@ describe("buildOverpassQuery", () => {
     expect(query).toContain('nwr["craft"="electrician"]');
   });
 
-  it("falls back to a name-regex query when no tags matched", () => {
+  it("falls back to a name-regex query across a broad category list when no tags matched", () => {
     const query = buildOverpassQuery([], bbox, "Fahrradladen");
-    expect(query).toContain('nwr[~"^(shop|craft|office)$"~"."]["name"~"Fahrradladen",i]');
+    expect(query).toContain('nwr[~"^(shop|craft|office|amenity|healthcare|leisure)$"~"."]["name"~"Fahrradladen",i]');
   });
 
   it("escapes regex-special characters in the fallback term", () => {

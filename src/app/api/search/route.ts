@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       search: result.search,
       leadCount: result.leads.length,
       industryMatched: result.industryMatched,
+      areaExpanded: result.areaExpanded,
     });
   } catch (err) {
     if (err instanceof SearchLimitError) {

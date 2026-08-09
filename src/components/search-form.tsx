@@ -28,6 +28,7 @@ export function SearchForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSearchId, setActiveSearchId] = useState<number | null>(null);
+  const [areaExpanded, setAreaExpanded] = useState(false);
 
   const needsConfirmation = limit > CONFIRMATION_THRESHOLD;
 
@@ -64,7 +65,11 @@ export function SearchForm() {
       body: JSON.stringify({ industry, location, limit, allowLarge }),
     });
 
-    const body = (await res.json().catch(() => ({}))) as { error?: string; search?: { id: number } };
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      search?: { id: number };
+      areaExpanded?: boolean;
+    };
     setSubmitting(false);
 
     if (!res.ok) {
@@ -72,6 +77,7 @@ export function SearchForm() {
       return;
     }
 
+    setAreaExpanded(Boolean(body.areaExpanded));
     if (body.search) setActiveSearchId(body.search.id);
     router.refresh();
   }
@@ -149,10 +155,13 @@ export function SearchForm() {
             {isProcessing
               ? `Found ${progress.resultsFound} leads — analyzing ${progress.resultsProcessed}/${progress.resultsFound}…`
               : progress.resultsFound === 0
-                ? "No leads found for this search."
+                ? "No leads found for this search, even after widening the search area. This industry/location combination may just not be well-covered in OpenStreetMap."
                 : `Done — analyzed ${progress.resultsProcessed}/${progress.resultsFound} lead${progress.resultsFound === 1 ? "" : "s"}` +
                   (progress.resultsFailed > 0 ? ` (${progress.resultsFailed} failed)` : "") +
                   "."}
+            {areaExpanded && progress.resultsFound > 0 && (
+              <span> The initial area had no results, so this widened the search radius automatically.</span>
+            )}
           </p>
         )}
       </CardContent>

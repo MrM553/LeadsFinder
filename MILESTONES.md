@@ -171,3 +171,15 @@ Nothing for the user to configure manually.
 **Docs:** README now covers the auth env-var setup step and Cloudflare scripts; CLAUDE.md and MILESTONES.md were kept up to date throughout rather than as a separate pass.
 
 Nothing for the user to configure manually beyond what Milestone 5 already flagged (replace the dev password before real use).
+
+### 2026-08-09 — Post-deploy: search recall improvements
+
+Diagnosed a real user report ("H. Zöllner Dachdeckermeister has a website but wasn't found") by querying OpenStreetMap directly — confirmed that specific business isn't in OSM at all, under any tag, anywhere. That's the hard ceiling of the free-OSM approach: no query tuning finds a business that was never mapped. Three improvements to get more out of what *is* in OSM, all free, no new provider:
+
+1. **Bigger industry map** (`industry-map.ts`): ~25 new German terms added (Zahnarzt, Friseur, Autowerkstatt, Fahrschule, Physiotherapeut, Immobilienmakler, Apotheke, Notar, etc.), each mapped to a precise OSM tag rather than falling back to the weaker name-search.
+2. **Wider fallback categories** (`overpass.ts`): the name-regex fallback for still-unmapped terms now also searches `amenity`/`healthcare`/`leisure` tags, not just `shop`/`craft`/`office`.
+3. **Auto-widen search radius on zero results** (`discover.ts`): if the initial area (the town's own boundary) returns nothing, automatically retries once with a ~15km-wider radius before giving up — pulls in the surrounding district. Surfaced to the user via `areaExpanded` in the API response and a note in the dashboard UI.
+
+Verified locally: "Dachdecker Rosenheim" (previously a confirmed 0-result case) now finds a real roofer in nearby Bad Aibling after widening; "Zahnarzt Rosenheim" (previously unmapped) now correctly tag-matches and finds 3 real dentists. 2 new unit tests, 76 total.
+
+**Explicitly not done** — discussed with the user and deferred: adding a paid/broader business-listing provider (e.g. Google Places) to catch businesses OSM never had. That's a real architecture change (cost per query, new API key, data-retention terms to handle carefully) and a deliberate departure from the fully-free design from Milestone 2 — needs its own decision, not bundled into this pass.

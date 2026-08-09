@@ -42,10 +42,16 @@ export function buildOverpassQuery(
   const [south, north, west, east] = bbox;
   const bboxStr = `${south},${west},${north},${east}`;
 
+  // Fallback category list for unmapped industry terms — covers most
+  // business-like OSM tag keys, not just shop/craft/office, so terms like
+  // "Zahnarzt" (amenity) or "Physiotherapeut" (healthcare) still find
+  // something even before they're added to the curated industry map.
+  const FALLBACK_CATEGORIES = "shop|craft|office|amenity|healthcare|leisure";
+
   const clauses =
     tags.length > 0
       ? tags.map((t) => `  nwr["${t.key}"="${t.value}"](${bboxStr});`).join("\n")
-      : `  nwr[~"^(shop|craft|office)$"~"."]["name"~"${escapeOverpassRegex(fallbackNameTerm ?? "")}",i](${bboxStr});`;
+      : `  nwr[~"^(${FALLBACK_CATEGORIES})$"~"."]["name"~"${escapeOverpassRegex(fallbackNameTerm ?? "")}",i](${bboxStr});`;
 
   return `[out:json][timeout:${QUERY_TIMEOUT_S}];\n(\n${clauses}\n);\nout center tags;`;
 }

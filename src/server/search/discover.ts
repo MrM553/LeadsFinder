@@ -2,7 +2,7 @@ import { getDb } from "../db/get-db";
 import { searches } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { upsertLead } from "../db/leads";
-import { geocodeGermanLocation } from "./geocode";
+import { geocodeGermanLocation, type GeocodeResult } from "./geocode";
 import { resolveIndustryTags } from "./industry-map";
 import { buildOverpassQuery, runOverpassQuery } from "./overpass";
 import { mapElementToLead } from "./map-element";
@@ -25,6 +25,19 @@ export interface DiscoverLeadsResult {
   search: Search;
   leads: Lead[];
   industryMatched: boolean;
+  /** True if the initial area had no results and a wider radius found some. */
+  areaExpanded: boolean;
+}
+
+/** ~15-17km at German latitudes — pulls in the surrounding area/district, not just the town itself. */
+const WIDEN_MARGIN_DEGREES = 0.15;
+
+function expandBbox(
+  bbox: [south: number, north: number, west: number, east: number],
+  marginDegrees: number
+): [south: number, north: number, west: number, east: number] {
+  const [south, north, west, east] = bbox;
+  return [south - marginDegrees, north + marginDegrees, west - marginDegrees, east + marginDegrees];
 }
 
 export async function discoverLeads(input: DiscoverLeadsInput): Promise<DiscoverLeadsResult> {
@@ -59,8 +72,7 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
     }
 
     const { tags, matched } = resolveIndustryTags(input.industry);
-    const query = buildOverpassQuery(tags, geocoded.boundingBox, input.industry);
-    const elements = await runOverpassQuery(query);
+    const { elements, areaExpanded } = await runWithAreaWiden(tags, geocoded, input.industry);
 
     const collected: Lead[] = [];
     for (const element of elements) {
@@ -78,12 +90,30 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
       .returning()
       .get();
 
-    return { search: done, leads: collected, industryMatched: matched };
+    return { search: done, leads: collected, industryMatched: matched, areaExpanded };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await failSearch(search, message);
     throw err;
   }
+}
+
+/** Runs the Overpass query; if the initial area has no results, retries once with a wider radius. */
+async function runWithAreaWiden(
+  tags: ReturnType<typeof resolveIndustryTags>["tags"],
+  geocoded: GeocodeResult,
+  industry: string
+): Promise<{ elements: Awaited<ReturnType<typeof runOverpassQuery>>; areaExpanded: boolean }> {
+  const query = buildOverpassQuery(tags, geocoded.boundingBox, industry);
+  const elements = await runOverpassQuery(query);
+  if (elements.length > 0) {
+    return { elements, areaExpanded: false };
+  }
+
+  const widerBbox = expandBbox(geocoded.boundingBox, WIDEN_MARGIN_DEGREES);
+  const widerQuery = buildOverpassQuery(tags, widerBbox, industry);
+  const widerElements = await runOverpassQuery(widerQuery);
+  return { elements: widerElements, areaExpanded: widerElements.length > 0 };
 }
 
 async function failSearch(search: Search, message: string): Promise<DiscoverLeadsResult> {
@@ -93,5 +123,10 @@ async function failSearch(search: Search, message: string): Promise<DiscoverLead
     .set({ status: "FAILED", errorMessage: message, updatedAt: new Date() })
     .where(eq(searches.id, search.id))
     .run();
-  return { search: { ...search, status: "FAILED", errorMessage: message }, leads: [], industryMatched: false };
+  return {
+    search: { ...search, status: "FAILED", errorMessage: message },
+    leads: [],
+    industryMatched: false,
+    areaExpanded: false,
+  };
 }
