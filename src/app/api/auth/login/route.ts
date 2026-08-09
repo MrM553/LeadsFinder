@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { env } from "@/lib/env";
+import { getEnv } from "@/lib/env";
 import { verifyPassword } from "@/server/auth/password";
 import { createSessionToken } from "@/server/auth/session";
 import { SESSION_COOKIE_NAME } from "@/server/auth/constants";
@@ -29,6 +29,8 @@ export async function POST(request: Request) {
 
   const limited = rateLimitOrResponse(`login:${username}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
   if (limited) return limited;
+
+  const env = getEnv();
 
   // Compare username with a fixed-time-ish check; the real protection here
   // is the scrypt+timingSafeEqual password check below.
