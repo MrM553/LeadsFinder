@@ -15,7 +15,7 @@ import { scoreAndSaveLead } from "../scoring/apply";
  * execution once the response is sent.
  */
 export async function processLeadsForSearch(searchId: number, leadIds: number[]): Promise<void> {
-  const db = getDb();
+  const db = await getDb();
 
   for (const leadId of leadIds) {
     try {

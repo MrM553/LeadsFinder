@@ -4,7 +4,6 @@ import { drizzle as drizzleD1, type DrizzleD1Database } from "drizzle-orm/d1";
 // with the "dom" lib's globals used by client components elsewhere in the app.
 import type { D1Database } from "@cloudflare/workers-types";
 import * as schema from "./schema";
-import { db as localDb } from "./client";
 
 type AppDatabase = DrizzleD1Database<typeof schema>;
 
@@ -17,6 +16,12 @@ let cached: AppDatabase | null = null;
  * Worker — `next dev` never initializes it (see next.config.ts), so this
  * reliably picks the right backend without an explicit env flag.
  *
+ * The local fallback is a *dynamic* import, not a static one — Workers
+ * can't run better-sqlite3's native addon at all, and (the actual bug this
+ * fixed) a static top-level import of ./client.ts opens a real SQLite file
+ * the instant this module loads, which crashed Next's build-time page-data
+ * collection for every route, not just ones that touch the database.
+ *
  * D1 bindings are stable for the lifetime of a Worker instance (bound at
  * deploy time, not per-request), so caching the resolved client is safe.
  *
@@ -27,7 +32,7 @@ let cached: AppDatabase | null = null;
  * static D1 type is asserted, to avoid a union type that breaks the query
  * builder's chained-method inference.
  */
-export function getDb(): AppDatabase {
+export async function getDb(): Promise<AppDatabase> {
   if (cached) return cached;
 
   try {
@@ -41,6 +46,7 @@ export function getDb(): AppDatabase {
     // Not running inside a Worker — fall through to the local database.
   }
 
+  const { db: localDb } = await import("./client");
   cached = localDb as unknown as AppDatabase;
   return cached;
 }

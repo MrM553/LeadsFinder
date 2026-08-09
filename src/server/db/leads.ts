@@ -15,7 +15,7 @@ export type LeadDiscoveryInput = Omit<NewLead, "dedupKey" | "id" | "createdAt" |
  * Never overwrites an existing non-null field with null.
  */
 export async function upsertLead(input: LeadDiscoveryInput): Promise<Lead> {
-  const db = getDb();
+  const db = await getDb();
   const dedupKey = buildDedupKey({
     websiteUrl: input.websiteUrl,
     companyName: input.companyName,
@@ -49,7 +49,7 @@ export async function upsertLead(input: LeadDiscoveryInput): Promise<Lead> {
  * page only fill a gap — they never overwrite a value already on the lead.
  */
 export async function applyAnalysisToLead(leadId: number, analysis: WebsiteAnalysis): Promise<Lead> {
-  const db = getDb();
+  const db = await getDb();
   const existing = await db.select().from(leads).where(eq(leads.id, leadId)).get();
   if (!existing) {
     throw new Error(`applyAnalysisToLead: no lead with id ${leadId}`);
@@ -79,12 +79,12 @@ export async function applyAnalysisToLead(leadId: number, analysis: WebsiteAnaly
 }
 
 export async function getLeadById(leadId: number): Promise<Lead | undefined> {
-  const db = getDb();
+  const db = await getDb();
   return db.select().from(leads).where(eq(leads.id, leadId)).get();
 }
 
 export async function updateLeadStatus(leadId: number, status: LeadStatus): Promise<Lead> {
-  const db = getDb();
+  const db = await getDb();
   return db
     .update(leads)
     .set({ status, updatedAt: new Date() })

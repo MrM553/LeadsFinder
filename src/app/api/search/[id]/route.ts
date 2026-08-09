@@ -13,7 +13,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Invalid search id." }, { status: 400 });
   }
 
-  const db = getDb();
+  const db = await getDb();
   const search = await db.select().from(searches).where(eq(searches.id, searchId)).get();
   if (!search) return NextResponse.json({ error: "Not found." }, { status: 404 });
 

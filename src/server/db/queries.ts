@@ -21,7 +21,7 @@ const SORT_COLUMNS = {
 } as const;
 
 export async function listLeads(params: LeadListParams) {
-  const db = getDb();
+  const db = await getDb();
   const pageSize = Math.min(Math.max(params.pageSize ?? 25, 1), 100);
   const page = Math.max(params.page ?? 1, 1);
 
@@ -59,13 +59,13 @@ export async function listLeads(params: LeadListParams) {
 }
 
 export async function listDistinctIndustries(): Promise<string[]> {
-  const db = getDb();
+  const db = await getDb();
   const rows = await db.selectDistinct({ industry: leads.industry }).from(leads).all();
   return rows.map((r) => r.industry).sort();
 }
 
 export async function getDashboardStats() {
-  const db = getDb();
+  const db = await getDb();
   const [totalRow, newRow, qualifiedRow, highScoreRow, recentSearches] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(leads).get(),
     db

@@ -6,7 +6,7 @@ import { ensureDefaultScoringRules } from "./seed-rules";
 
 /** Recomputes and persists a lead's score from its currently-stored signals — no site re-fetch required. */
 export async function scoreAndSaveLead(leadId: number): Promise<Lead> {
-  const db = getDb();
+  const db = await getDb();
   await ensureDefaultScoringRules();
 
   const lead = await db.select().from(leads).where(eq(leads.id, leadId)).get();

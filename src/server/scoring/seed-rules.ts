@@ -5,7 +5,7 @@ import { DEFAULT_SCORING_RULES } from "./rules";
 
 /** Inserts default scoring rules that don't already exist by key. Never overwrites a rule the user has customized. */
 export async function ensureDefaultScoringRules(): Promise<void> {
-  const db = getDb();
+  const db = await getDb();
   for (const rule of DEFAULT_SCORING_RULES) {
     const existing = await db.select().from(scoringRules).where(eq(scoringRules.key, rule.key)).get();
     if (!existing) {

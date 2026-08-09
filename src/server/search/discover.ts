@@ -28,7 +28,7 @@ export interface DiscoverLeadsResult {
 }
 
 export async function discoverLeads(input: DiscoverLeadsInput): Promise<DiscoverLeadsResult> {
-  const db = getDb();
+  const db = await getDb();
   const limit = input.limit ?? DEV_DEFAULT_LIMIT;
 
   if (limit > MAX_LIMIT) {
@@ -87,7 +87,7 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
 }
 
 async function failSearch(search: Search, message: string): Promise<DiscoverLeadsResult> {
-  const db = getDb();
+  const db = await getDb();
   await db
     .update(searches)
     .set({ status: "FAILED", errorMessage: message, updatedAt: new Date() })
