@@ -77,10 +77,12 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [x] Enforce configured result limit end-to-end
 
 ## Milestone 7 — Production
-- [ ] Investigate current recommended Cloudflare architecture for Next.js at time of implementation
-- [ ] Cloudflare Workers deployment (via current recommended adapter)
-- [ ] Cloudflare D1 production database + migration run
-- [ ] Secrets configured via Cloudflare (never committed)
+- [x] Investigate current recommended Cloudflare architecture for Next.js at time of implementation
+- [x] OpenNext adapter + wrangler config scaffolded, build-verified where possible without an account
+- [ ] Cloudflare Workers deployment (blocked on user's Cloudflare account — see completion log)
+- [ ] Cloudflare D1 production database + migration run (blocked on user's Cloudflare account)
+- [ ] Production DB client (D1-backed, request-scoped) — deliberately deferred, see CLAUDE.md §11
+- [ ] Secrets configured via Cloudflare (never committed) — blocked on user's Cloudflare account
 - [ ] Basic monitoring/error visibility (e.g. Workers logs / Sentry — decide when needed)
 - [ ] Error handling review for production paths
 
@@ -139,3 +141,19 @@ Also renamed `src/middleware.ts` → `src/proxy.ts`'s exported function from `mi
 **Note for Milestone 7:** `processLeadsForSearch` is fire-and-forget Node.js code, which only works because `next dev`/`next start` keep the process alive after the response is sent. On Cloudflare Workers the request context is torn down once the response returns unless execution is explicitly extended — the `POST /api/search` handler will need to wrap that call in `ctx.waitUntil()` (or move to a Cloudflare Queue if runs start exceeding a Worker's execution time limit). Flagged in a code comment at the call site already.
 
 Nothing for the user to configure manually.
+
+### 2026-08-09 — Milestone 7 partial (scaffolding done; deployment blocked on your Cloudflare account)
+
+**What's done:** Investigated current guidance (fetched live Cloudflare/OpenNext docs rather than relying on training data — adapters in this space move fast). Confirmed `@opennextjs/cloudflare` is the current official Next.js-on-Workers adapter. Installed it plus `wrangler`; added `wrangler.jsonc` (D1 binding declared, placeholder `database_id`), `open-next.config.ts`, `next.config.ts`'s `initOpenNextCloudflareForDev()` hook, and `package.json` scripts (`cf:preview`, `cf:deploy`, `cf:typegen`, `d1:migrate:local`, `d1:migrate:remote`).
+
+**Real incompatibility found and fixed:** Milestone 5/6 had renamed `middleware.ts` → `proxy.ts` per Next.js 16's current convention. Building through OpenNext failed with `Node.js middleware is not currently supported` — Next.js 16's `proxy.ts` always runs on the Node.js runtime with no opt-out, and OpenNext's Cloudflare adapter doesn't support that yet. Reverted to the deprecated-but-functional `middleware.ts` with `export const runtime = "experimental-edge"`, which builds cleanly. This is a deliberate, documented exception to "always use the current convention" — see CLAUDE.md §11. Revisit when either side adds support.
+
+**Also found:** the Vitest suite was picking up duplicate test files that Next's build tracing had copied into `.next/standalone/`, causing file-lock conflicts on the isolated test database from Milestone 6. Fixed with an explicit `exclude` in `vitest.config.mts`.
+
+**Verified without a Cloudflare account:** `next build` compiles cleanly through the OpenNext pipeline (Next.js compilation + type-check + route collection all succeed). The final OpenNext bundling step fails on this Windows machine specifically with an `EPERM` symlink error — OpenNext's own docs warn it isn't fully Windows-compatible yet. This is an environment limitation, not an app or config problem.
+
+**Deliberately not done — needs you present with real credentials, not guesswork:**
+1. **Production DB client.** `src/server/db/client.ts` is a module-level `better-sqlite3` singleton — this works for local dev but not for Cloudflare Workers, where bindings (like a D1 database) are only available per-request via `getCloudflareContext().env`, not at module load time. Writing this blind, with no way to run `wrangler dev` against a real D1 binding to check it actually works, risks shipping code that looks right and silently breaks. Same open question for `src/lib/env.ts`'s secrets (`AUTH_SECRET` etc.) — needs verifying whether `nodejs_compat` exposes `wrangler secret`-set values via `process.env`, or whether they need reading from the Workers `env` binding instead.
+2. **Actually deploying.** Needs: a Cloudflare account, `wrangler login`, `wrangler d1 create leadfinder-db` (paste the returned ID into `wrangler.jsonc`), `wrangler secret put` for `AUTH_SECRET`/`DASHBOARD_USERNAME`/`DASHBOARD_PASSWORD_HASH` (generate a real password hash first — the dev one is a throwaway), then either `npm run cf:deploy` from WSL/Linux (this machine's Windows symlink issue) or — recommended — connect the GitHub repo in the Cloudflare dashboard and let Cloudflare's own Linux build infrastructure handle it.
+
+**What you need to do to unblock the rest of this milestone:** sign up for Cloudflare if you haven't, then let's continue together so the D1 client and first deploy can actually be tested against your real account instead of guessed at.
