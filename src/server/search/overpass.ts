@@ -1,11 +1,16 @@
 import { createThrottle } from "./rate-limit";
 import type { OsmTagFilter } from "./industry-map";
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+// Multiple public instances: the primary (overpass-api.de) returns a
+// Cloudflare-edge 521 ("origin refused connection") when called from a
+// Cloudflare Worker specifically — confirmed reachable and healthy from a
+// plain machine, so this looks like the origin blocking Cloudflare's IP
+// ranges rather than an outage. Falls through to a mirror in that case.
+const OVERPASS_URLS = ["https://overpass-api.de/api/interpreter", "https://overpass.osm.ch/api/interpreter"];
 const USER_AGENT = "LeadFinder/0.1 (internal lead-research tool; not for redistribution)";
 const QUERY_TIMEOUT_S = 25;
 
-// Public Overpass instance fair-use: avoid rapid/parallel querying.
+// Public Overpass instances fair-use: avoid rapid/parallel querying.
 const throttle = createThrottle(2000);
 
 export interface OverpassElement {
@@ -45,15 +50,15 @@ export function buildOverpassQuery(
   return `[out:json][timeout:${QUERY_TIMEOUT_S}];\n(\n${clauses}\n);\nout center tags;`;
 }
 
-const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
-const MAX_ATTEMPTS = 3;
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504, 521, 522, 523, 524]);
+const MAX_ATTEMPTS_PER_ENDPOINT = 2;
 
-async function runOverpassQueryOnce(query: string): Promise<OverpassElement[]> {
+async function runOverpassQueryOnce(url: string, query: string): Promise<OverpassElement[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), (QUERY_TIMEOUT_S + 5) * 1000);
 
   try {
-    const res = await fetch(OVERPASS_URL, {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -76,20 +81,26 @@ async function runOverpassQueryOnce(query: string): Promise<OverpassElement[]> {
   }
 }
 
-/** Overpass's public instance is shared and occasionally overloaded/rate-limited; retry transient errors with backoff. */
+/**
+ * Tries each configured Overpass endpoint in turn, retrying transient
+ * errors (rate limits, timeouts, edge-level failures) with backoff before
+ * falling through to the next endpoint.
+ */
 export async function runOverpassQuery(query: string): Promise<OverpassElement[]> {
   let lastError: unknown;
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    await throttle();
-    try {
-      return await runOverpassQueryOnce(query);
-    } catch (err) {
-      lastError = err;
-      const status = (err as Error & { status?: number }).status;
-      const retryable = status !== undefined && RETRYABLE_STATUS.has(status);
-      if (!retryable || attempt === MAX_ATTEMPTS) break;
-      await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+  for (const url of OVERPASS_URLS) {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ENDPOINT; attempt++) {
+      await throttle();
+      try {
+        return await runOverpassQueryOnce(url, query);
+      } catch (err) {
+        lastError = err;
+        const status = (err as Error & { status?: number }).status;
+        const retryable = status !== undefined && RETRYABLE_STATUS.has(status);
+        if (!retryable || attempt === MAX_ATTEMPTS_PER_ENDPOINT) break;
+        await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+      }
     }
   }
 
