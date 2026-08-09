@@ -39,17 +39,17 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [x] Dev-time result limit default (10), hard confirmation gate above 10, hard ceiling at 100
 
 ## Milestone 3 — Website Analysis
-- [ ] Fetch site with timeout, retry-once, robots.txt check
-- [ ] Website accessibility / status check
-- [ ] HTTPS check
-- [ ] Basic mobile indicator (viewport meta tag presence, etc. — heuristic, documented as such)
-- [ ] Contact form detection
-- [ ] Phone number detection (on-page, not guessed)
-- [ ] Email detection (on-page, not guessed)
-- [ ] CTA detection (heuristic keyword/button check)
-- [ ] Basic technical checks (title/meta present, broken obvious markers)
-- [ ] Basic performance indicator (response time; not a full Lighthouse run in v1)
-- [ ] All analysis results persisted with `last_checked` timestamp
+- [x] Fetch site with timeout, retry-once, robots.txt check
+- [x] Website accessibility / status check
+- [x] HTTPS check
+- [x] Basic mobile indicator (viewport meta tag presence — heuristic, documented as such)
+- [x] Contact form detection
+- [x] Phone number detection (on-page, not guessed)
+- [x] Email detection (on-page, not guessed)
+- [x] CTA detection (heuristic German-phrase check)
+- [x] Basic technical checks (title/meta description present)
+- [x] Basic performance indicator (response time)
+- [x] All analysis results persisted with `last_checked` timestamp
 
 ## Milestone 4 — Lead Scoring
 - [ ] Scoring engine as pure, unit-tested functions
@@ -107,3 +107,6 @@ Drizzle schema for `leads`, `searches`, `scoring_rules`, `notes` (src/server/db/
 
 ### 2026-08-09 — Milestone 2 complete
 Discovery pipeline in src/server/search/: `industry-map.ts` (German trade term → OSM tag, curated map + name-regex fallback for unmapped terms), `geocode.ts` (Nominatim, throttled to 1 req/s, Germany-scoped), `overpass.ts` (query builder + client, throttled, retries 429/502/503/504 up to 3x with backoff), `map-element.ts` (pure OSM element → lead mapper, never fabricates missing fields), `discover.ts` (orchestrates geocode → query → map → `upsertLead`, writes `searches` row with status/result count, enforces the confirmation-threshold and 100-lead ceiling). 14 new unit tests, all passing, no network calls in the test suite. Verified live against the real Overpass API: "Elektriker München" (limit 5) returned 5 real businesses with name/website/phone/email/source correctly captured; a "Dachdecker Rosenheim" test returned 0 results, which is a genuine OSM data-coverage gap for that specific craft tag in a smaller city, not a pipeline bug — worth knowing when picking test queries. Public Overpass instance does occasionally rate-limit (429) or time out (504) under load; the retry logic handles this. Nothing for the user to configure manually — no API keys involved.
+
+### 2026-08-09 — Milestone 3 complete
+Analysis pipeline in src/server/analysis/: `http.ts` (throttled fetch, identifying User-Agent), `robots.ts` (robots.txt fetch + parser with longest-match Allow/Disallow, specific-UA-group preference, fails open only on fetch/network error), `fetch-site.ts` (timeout + one retry, 2MB HTML cap, maps to UP/DOWN/UNREACHABLE), `detectors.ts` (pure heuristics: HTTPS, viewport meta, contact form, phone via tel:/regex, email via mailto:/regex, German CTA phrase list, title/meta description), `analyze.ts` (orchestrates robots check → fetch → detect). `applyAnalysisToLead` (src/server/db/leads.ts) writes detection flags + `lastChecked` and fills phone/email only when the lead doesn't already have one — never overwrites existing data. Added `response_time_ms`, `has_title`, `has_meta_description` columns to `leads` (migration 0001) so scoring can be recomputed later without re-fetching. 24 new unit tests (47 total), all passing, no network in the suite. Verified live against two real business sites (pittroff.de, elektro-bleumortier.de) — correctly extracted phone/email, detected HTTPS/mobile/contact-form/title/meta, and measured real response times; confirmed `applyAnalysisToLead` refreshes signals without clobbering an existing phone number. Nothing for the user to configure manually.

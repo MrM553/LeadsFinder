@@ -49,6 +49,12 @@ export const leads = sqliteTable("leads", {
   emailDetected: integer("email_detected", { mode: "boolean" }),
   ctaDetected: integer("cta_detected", { mode: "boolean" }),
 
+  // Raw analysis signals, kept so scoring can be recomputed later without
+  // re-fetching the site (see CLAUDE.md §9).
+  responseTimeMs: integer("response_time_ms"),
+  hasTitle: integer("has_title", { mode: "boolean" }),
+  hasMetaDescription: integer("has_meta_description", { mode: "boolean" }),
+
   technicalScore: real("technical_score"),
   performanceScore: real("performance_score"),
   overallScore: real("overall_score"),

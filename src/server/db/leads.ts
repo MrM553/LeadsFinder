@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "./client";
-import { leads, type NewLead } from "./schema";
+import { leads, type NewLead, type Lead } from "./schema";
 import { buildDedupKey } from "./dedupe";
+import type { WebsiteAnalysis } from "../analysis/analyze";
 
 export type LeadDiscoveryInput = Omit<NewLead, "dedupKey" | "id" | "createdAt" | "updatedAt"> & {
   companyName: string;
@@ -38,4 +39,38 @@ export function upsertLead(input: LeadDiscoveryInput) {
   merged.updatedAt = new Date();
 
   return db.update(leads).set(merged).where(eq(leads.id, existing.id)).returning().get();
+}
+
+/**
+ * Writes analysis results onto an existing lead. Detection flags/signals are
+ * always overwritten with the latest check; phone/email extracted from the
+ * page only fill a gap — they never overwrite a value already on the lead.
+ */
+export function applyAnalysisToLead(leadId: number, analysis: WebsiteAnalysis): Lead {
+  const existing = db.select().from(leads).where(eq(leads.id, leadId)).get();
+  if (!existing) {
+    throw new Error(`applyAnalysisToLead: no lead with id ${leadId}`);
+  }
+
+  return db
+    .update(leads)
+    .set({
+      websiteStatus: analysis.websiteStatus,
+      httpsStatus: analysis.httpsStatus,
+      mobileIndicator: analysis.mobileIndicator,
+      contactFormDetected: analysis.contactFormDetected,
+      phoneDetected: analysis.phoneDetected,
+      emailDetected: analysis.emailDetected,
+      ctaDetected: analysis.ctaDetected,
+      responseTimeMs: analysis.responseTimeMs,
+      hasTitle: analysis.hasTitle,
+      hasMetaDescription: analysis.hasMetaDescription,
+      phone: existing.phone ?? analysis.extractedPhone,
+      email: existing.email ?? analysis.extractedEmail,
+      lastChecked: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(leads.id, leadId))
+    .returning()
+    .get();
 }
