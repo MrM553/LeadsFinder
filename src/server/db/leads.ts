@@ -3,6 +3,7 @@ import { db } from "./client";
 import { leads, type NewLead, type Lead } from "./schema";
 import { buildDedupKey } from "./dedupe";
 import type { WebsiteAnalysis } from "../analysis/analyze";
+import type { LeadStatus } from "@/types/lead";
 
 export type LeadDiscoveryInput = Omit<NewLead, "dedupKey" | "id" | "createdAt" | "updatedAt"> & {
   companyName: string;
@@ -70,6 +71,19 @@ export function applyAnalysisToLead(leadId: number, analysis: WebsiteAnalysis): 
       lastChecked: new Date(),
       updatedAt: new Date(),
     })
+    .where(eq(leads.id, leadId))
+    .returning()
+    .get();
+}
+
+export function getLeadById(leadId: number): Lead | undefined {
+  return db.select().from(leads).where(eq(leads.id, leadId)).get();
+}
+
+export function updateLeadStatus(leadId: number, status: LeadStatus): Lead {
+  return db
+    .update(leads)
+    .set({ status, updatedAt: new Date() })
     .where(eq(leads.id, leadId))
     .returning()
     .get();

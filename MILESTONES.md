@@ -60,14 +60,14 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [x] Unit tests covering representative scoring scenarios
 
 ## Milestone 5 — Dashboard
-- [ ] Authentication (single agency-owner account to start)
-- [ ] Main view: total/new/qualified/high-score lead counts, recent searches, search entry point
-- [ ] Lead table: company, industry, city, website, score, status, date found
-- [ ] Table search, sort, filter
-- [ ] Status change control (NEW/REVIEWED/QUALIFIED/CONTACTED/FOLLOW_UP/CALL_BOOKED/PROPOSAL/WON/LOST/NOT_RELEVANT)
-- [ ] Notes on a lead
-- [ ] Lead detail page: all stored fields + full scoring breakdown + open website/open source links
-- [ ] All dashboard routes behind auth
+- [x] Authentication (single agency-owner account to start)
+- [x] Main view: total/new/qualified/high-score lead counts, recent searches, search entry point
+- [x] Lead table: company, industry, city, website, score, status, date found
+- [x] Table search, sort, filter
+- [x] Status change control (NEW/REVIEWED/QUALIFIED/CONTACTED/FOLLOW_UP/CALL_BOOKED/PROPOSAL/WON/LOST/NOT_RELEVANT)
+- [x] Notes on a lead
+- [x] Lead detail page: all stored fields + full scoring breakdown + open website/open source links
+- [x] All dashboard routes behind auth
 
 ## Milestone 6 — Search Jobs
 - [ ] Search progress tracking (queued/running/done/failed) surfaced in UI
@@ -117,3 +117,14 @@ Analysis pipeline in src/server/analysis/: `http.ts` (throttled fetch, identifyi
 
 ### 2026-08-09 — Milestone 4 complete
 Scoring engine in src/server/scoring/: `rules.ts` (13 default rules, additive to 100, see "Scoring Model" above), `score.ts` (`scoreLead` — pure, takes signals + enabled rules, returns overall/technical/performance scores and a reason for every applicable rule whether met or missed; `computePerformanceScore` — graded from response time), `seed-rules.ts` (`ensureDefaultScoringRules`, upsert-by-key, never clobbers a user-customized rule), `apply.ts` (`scoreAndSaveLead` — loads a lead's stored signals + current rules, recomputes, writes back; no site re-fetch needed). Added `scoring_rules.category` and `leads.industry_matched` columns (migration 0002) so re-scoring works from stored data alone. 11 new unit tests (58 total), all passing — cover a perfect lead (100/100/100), a no-website lead (22, only relevance rules apply), disabled rules being omitted, re-weighted rules taking effect, and the fallback-industry-match case. Seed script now calls the real scoring engine instead of hand-typed scores; verified output: fully-optimized fake lead scores 92, a site with missing HTTPS/mobile/CTA/contact-form scores 48, a no-website lead scores 22 — all with correct reason lists. Nothing for the user to configure manually.
+
+### 2026-08-09 — Milestone 5 complete
+Auth: scrypt password hashing + timing-safe verify (`src/server/auth/password.ts`), HMAC-signed session cookie (`session.ts`), `getSession()`/`requireApiSession()` as the real enforcement point on every protected page and API route, `src/proxy.ts` (Next.js 16's middleware convention) as a cheap cookie-presence redirect for page UX only. Login page + `/api/auth/login`/`logout`. `npm run auth:hash-password` generates a `DASHBOARD_PASSWORD_HASH`.
+
+API routes: `GET/PATCH /api/leads`, `/api/leads/[id]`, `/api/leads/[id]/notes`, `GET /api/stats`, `/api/industries`, `POST /api/search` (wraps discover → analyze → score per lead, synchronous at dev-limit scale). All zod-validated, all auth-gated.
+
+Pages: `/` (stats + search form with the same confirmation gate as the API), `/leads` (React-Query-backed table with search/status/industry filters, sort, pagination, inline status change), `/leads/[id]` (full field dump, website signal badges, complete score breakdown, notes).
+
+Fixed two issues found during browser testing: (1) `src/proxy.ts` must not import anything that pulls in `node:crypto` — it runs on the Edge runtime, unlike route handlers/server components — so the session cookie name was split into a crypto-free `constants.ts`; (2) Base UI's `Select.Value` doesn't auto-derive a label from `SelectItem` children for a dynamic value, so it now takes explicit children. Verified live in-browser end-to-end: login, dashboard stats, a real "Steuerberater München" search (5 results) that correctly discovered/analyzed/scored real businesses and updated the table, status change and note-add via direct API calls (the Select's portal popup doesn't work with this session's synthetic-click testing tool, but the API layer and rendered options were verified separately), logout, and a 401 on an unauthenticated API call. Renamed `middleware.ts` → `proxy.ts` per Next.js 16's current convention (resolved a build deprecation warning).
+
+**Manual configuration needed:** the dev `.env.local` has a throwaway password (`dev-only-password-change-me`, username `admin`) — change `DASHBOARD_USERNAME`/`DASHBOARD_PASSWORD_HASH` before any real use, and never commit `.env.local` (already gitignored).

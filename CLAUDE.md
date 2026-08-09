@@ -53,7 +53,7 @@ Principles:
 | Database (local) | SQLite via Drizzle ORM | Zero setup, file-based, same schema shape as D1 |
 | Database (production) | Cloudflare D1 | Compatible with Workers deployment; SQLite-compatible with Drizzle |
 | ORM | Drizzle | Typed, lightweight, works with both SQLite and D1 without rewriting queries |
-| Auth | Auth.js (NextAuth) credentials, or a minimal custom session — decide in Milestone 5 | Single-user/agency tool, not multi-tenant yet; keep it simple |
+| Auth | Custom signed-cookie session (scrypt password hash + HMAC-signed session token, no external auth library) | Single agency-owner account, not multi-tenant; avoids NextAuth's provider/adapter surface for a need this small — see `src/server/auth/` |
 | Deployment | Cloudflare Workers (via OpenNext for Next.js) | User requirement; investigate current recommended adapter at deploy time (Milestone 7) — don't lock this in prematurely |
 | Package manager | npm (unless user states a preference) | Default; revisit if asked |
 | Lead discovery | OpenStreetMap Overpass API (free, no key, no signup) for candidate businesses by category + location | Fully free; strong German POI coverage; returns structured name/address/phone/website tags that map directly onto lead fields; avoids Google Places API's data-caching/retention restrictions |
@@ -72,7 +72,7 @@ Do not introduce a new library, framework, or service without checking whether a
 
 ## 5. Security Requirements
 
-- **The dashboard requires authentication.** No unauthenticated route may read or write lead data.
+- **The dashboard requires authentication.** No unauthenticated route may read or write lead data. `src/proxy.ts` (Next.js 16's middleware convention) does a cheap cookie-presence redirect for page UX only — the real enforcement is `getSession()` (full HMAC + expiry verification) called at the top of every protected server component and API route (see `src/server/auth/`).
 - All API keys (search provider, etc.) are server-side environment variables only. Never sent to or readable by the browser.
 - Validate and sanitize all user input at API boundaries (zod schemas on every route handler).
 - Parameterized queries only (Drizzle handles this) — no raw string-built SQL.

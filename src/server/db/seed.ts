@@ -4,6 +4,7 @@
  * scraped business data. Scores are computed by the real scoring engine
  * from the seeded signals, not hand-typed.
  */
+import "./load-env";
 import { db } from "./client";
 import { leads, searches, notes } from "./schema";
 import { upsertLead } from "./leads";
