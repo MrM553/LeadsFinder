@@ -19,15 +19,15 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [x] Basic project structure (`src/app`, `src/server`, `src/components`, `src/lib`)
 
 ## Milestone 1 — Database
-- [ ] Choose/confirm dedup key rule (normalized domain, documented in CLAUDE.md §9)
-- [ ] Drizzle ORM + SQLite set up for local dev
-- [ ] `leads` table (see field list in CLAUDE.md / product requirements)
-- [ ] `searches` table (industry, location, requested count, created_at, status)
-- [ ] `scoring_rules` table (configurable factors — see Milestone 4)
-- [ ] `notes` table (lead_id, text, created_at)
-- [ ] Migrations checked in
-- [ ] Seed script with clearly-fake sample leads for local dev/testing
-- [ ] Duplicate handling logic (insert-or-update by dedup key) with a unit test
+- [x] Choose/confirm dedup key rule (normalized domain, documented in CLAUDE.md §9)
+- [x] Drizzle ORM + SQLite set up for local dev
+- [x] `leads` table (see field list in CLAUDE.md / product requirements)
+- [x] `searches` table (industry, location, requested count, created_at, status)
+- [x] `scoring_rules` table (configurable factors — see Milestone 4)
+- [x] `notes` table (lead_id, text, created_at)
+- [x] Migrations checked in
+- [x] Seed script with clearly-fake sample leads for local dev/testing
+- [x] Duplicate handling logic (insert-or-update by dedup key) with a unit test
 
 ## Milestone 2 — Lead Search
 - [ ] Search provider decision finalized (see "External Services" in proposal)
@@ -101,3 +101,6 @@ _(Add an entry here each time a milestone is completed: date, what shipped, what
 
 ### 2026-08-09 — Milestone 0 complete
 Next.js 16 (App Router, TS, Tailwind v4) scaffolded; shadcn/ui (base-nova preset) initialized; React Query, Drizzle ORM, better-sqlite3, zod, drizzle-kit, vitest, tsx installed. `src/server/{db,search,analysis,scoring}` structure created. `.env.example` + typed `env.ts`. Git repo initialized. No manual configuration needed yet.
+
+### 2026-08-09 — Milestone 1 complete
+Drizzle schema for `leads`, `searches`, `scoring_rules`, `notes` (src/server/db/schema.ts); shared status/enum types in src/types/lead.ts. Dedup key rule implemented and unit-tested (src/server/db/dedupe.ts, 9 passing tests): normalized domain when a website is known, else normalized "name|city". `upsertLead` (src/server/db/leads.ts) inserts new leads or merges into an existing one by dedup key without clobbering known fields with nulls. Initial migration generated and applied. Seed script (src/server/db/seed.ts) adds 1 fake search + 3 fake leads (clearly fictional "Muster..." names), skips if data already exists. Nothing for the user to configure manually.
