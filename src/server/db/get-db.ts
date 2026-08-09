@@ -1,5 +1,8 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { drizzle as drizzleD1, type DrizzleD1Database } from "drizzle-orm/d1";
+// Imported explicitly (not via a global ambient type) so it doesn't collide
+// with the "dom" lib's globals used by client components elsewhere in the app.
+import type { D1Database } from "@cloudflare/workers-types";
 import * as schema from "./schema";
 import { db as localDb } from "./client";
 
