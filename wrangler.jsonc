@@ -1,6 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "leadfinder",
+  // Must match the Worker name Cloudflare's Git-integration build actually
+  // deployed as ("leadsfinder", from the repo name) — it does NOT read this
+  // field to name the Worker when deploying via the dashboard's "Import a
+  // repository" flow, which caused secrets set against "leadfinder" (this
+  // field's old value) to attach to the wrong, unused Worker. Keep these in
+  // sync, or CLI commands (secrets, migrations) will silently target the
+  // wrong Worker again.
+  "name": "leadsfinder",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
   // nodejs_compat_populate_process_env: without it, process.env.AUTH_SECRET
