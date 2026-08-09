@@ -36,6 +36,9 @@ export const leads = sqliteTable("leads", {
 
   sourceUrl: text("source_url"),
   foundInSearchId: integer("found_in_search_id").references(() => searches.id),
+  // Whether discovery matched a known industry tag (true) or fell back to a
+  // generic name-regex query (false) — feeds the industry_relevance scoring rule.
+  industryMatched: integer("industry_matched", { mode: "boolean" }).notNull().default(true),
   dateFound: integer("date_found", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -86,6 +89,7 @@ export const scoringRules = sqliteTable("scoring_rules", {
   key: text("key").notNull().unique(),
   label: text("label").notNull(),
   description: text("description"),
+  category: text("category").$type<"existence" | "technical" | "relevance">().notNull(),
   points: integer("points").notNull(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: integer("created_at", { mode: "timestamp" })

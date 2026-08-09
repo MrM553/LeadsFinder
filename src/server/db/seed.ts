@@ -1,13 +1,18 @@
 /**
  * Local dev seed data. All companies/domains below are fictional
  * ("Muster..." = German placeholder-name convention) — never real
- * scraped business data.
+ * scraped business data. Scores are computed by the real scoring engine
+ * from the seeded signals, not hand-typed.
  */
 import { db } from "./client";
 import { leads, searches, notes } from "./schema";
 import { upsertLead } from "./leads";
+import { scoreAndSaveLead } from "../scoring/apply";
+import { ensureDefaultScoringRules } from "../scoring/seed-rules";
 
 function seed() {
+  ensureDefaultScoringRules();
+
   const search = db
     .insert(searches)
     .values({
@@ -31,6 +36,7 @@ function seed() {
     email: "info@musterdach-rosenheim.de",
     sourceUrl: "https://www.openstreetmap.org/way/000000001",
     foundInSearchId: search.id,
+    industryMatched: true,
     lastChecked: new Date(),
     websiteStatus: "UP",
     httpsStatus: true,
@@ -39,14 +45,9 @@ function seed() {
     phoneDetected: true,
     emailDetected: true,
     ctaDetected: false,
-    technicalScore: 78,
-    performanceScore: 65,
-    overallScore: 71,
-    scoreReasons: [
-      { label: "Target industry", points: 10 },
-      { label: "No clear CTA", points: -8 },
-      { label: "HTTPS present", points: 5 },
-    ],
+    responseTimeMs: 450,
+    hasTitle: true,
+    hasMetaDescription: true,
     status: "NEW",
   });
 
@@ -61,6 +62,7 @@ function seed() {
     email: null,
     sourceUrl: "https://www.openstreetmap.org/way/000000002",
     foundInSearchId: search.id,
+    industryMatched: true,
     lastChecked: new Date(),
     websiteStatus: "UP",
     httpsStatus: false,
@@ -69,15 +71,9 @@ function seed() {
     phoneDetected: false,
     emailDetected: false,
     ctaDetected: false,
-    technicalScore: 22,
-    performanceScore: 40,
-    overallScore: 28,
-    scoreReasons: [
-      { label: "HTTPS missing", points: -15 },
-      { label: "No contact form", points: -10 },
-      { label: "Poor mobile indicators", points: -10 },
-      { label: "Target industry", points: 10 },
-    ],
+    responseTimeMs: 3200,
+    hasTitle: true,
+    hasMetaDescription: false,
     status: "NEW",
   });
 
@@ -90,16 +86,14 @@ function seed() {
     country: "Germany",
     sourceUrl: "https://www.openstreetmap.org/way/000000003",
     foundInSearchId: search.id,
+    industryMatched: true,
     websiteStatus: "NO_WEBSITE",
-    technicalScore: 0,
-    performanceScore: 0,
-    overallScore: 5,
-    scoreReasons: [
-      { label: "No website", points: -30 },
-      { label: "Target industry", points: 10 },
-    ],
     status: "NEW",
   });
+
+  for (const lead of [lead1, lead2, lead3]) {
+    scoreAndSaveLead(lead.id);
+  }
 
   db.insert(notes)
     .values({

@@ -70,7 +70,7 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
       if (collected.length >= limit) break;
       const leadInput = mapElementToLead(element, input.industry);
       if (!leadInput) continue;
-      const lead = upsertLead({ ...leadInput, foundInSearchId: search.id });
+      const lead = upsertLead({ ...leadInput, foundInSearchId: search.id, industryMatched: matched });
       collected.push(lead);
     }
 

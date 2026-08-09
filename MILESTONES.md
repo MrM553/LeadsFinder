@@ -52,12 +52,12 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [x] All analysis results persisted with `last_checked` timestamp
 
 ## Milestone 4 — Lead Scoring
-- [ ] Scoring engine as pure, unit-tested functions
-- [ ] 0–100 score from measurable factors only (no free-form AI judgment)
-- [ ] Score reasons returned as a structured list (not just a number)
-- [ ] Scoring weights/rules stored in `scoring_rules` table, editable without a code change
-- [ ] Industry relevance + location relevance factored in
-- [ ] Unit tests covering representative scoring scenarios
+- [x] Scoring engine as pure, unit-tested functions
+- [x] 0–100 score from measurable factors only (no free-form AI judgment)
+- [x] Score reasons returned as a structured list (not just a number)
+- [x] Scoring weights/rules stored in `scoring_rules` table, editable without a code change
+- [x] Industry relevance + location relevance factored in
+- [x] Unit tests covering representative scoring scenarios
 
 ## Milestone 5 — Dashboard
 - [ ] Authentication (single agency-owner account to start)
@@ -96,6 +96,10 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 ## Deferred (not part of any milestone above — see CLAUDE.md §13)
 AI website audits · website screenshots · additional search providers · CSV export · advanced CRM · lead enrichment · personalized audit generation · outreach tracking · automated follow-up reminders · team accounts · multi-tenant/SaaS.
 
+## Scoring Model (Milestone 4)
+
+Additive, out of 100: `has_website` 15, `website_reachable` 8, `https_present` 8, `mobile_friendly` 8, `contact_form_present` 10, `cta_present` 8, `phone_detected` 5, `email_detected` 5, `fast_response` 6, `title_present` 3, `meta_description_present` 2, `industry_relevance` 12, `location_relevance` 10. Page-level rules only apply when the site is reachable — a lead with no website still earns industry/location relevance points. `technicalScore` is the technical-category subset normalized to 0–100; `performanceScore` is graded directly from response time (100/80/50/25/10) independent of rule weights, so it stays a stable gauge even if the user retunes `scoring_rules`. All weights live in `scoring_rules` (seeded from `src/server/scoring/rules.ts` defaults on first use, never overwritten if the user has customized a row) — editable without a code change per CLAUDE.md §3.
+
 ## Completion Log
 _(Add an entry here each time a milestone is completed: date, what shipped, what needs manual configuration.)_
 
@@ -110,3 +114,6 @@ Discovery pipeline in src/server/search/: `industry-map.ts` (German trade term �
 
 ### 2026-08-09 — Milestone 3 complete
 Analysis pipeline in src/server/analysis/: `http.ts` (throttled fetch, identifying User-Agent), `robots.ts` (robots.txt fetch + parser with longest-match Allow/Disallow, specific-UA-group preference, fails open only on fetch/network error), `fetch-site.ts` (timeout + one retry, 2MB HTML cap, maps to UP/DOWN/UNREACHABLE), `detectors.ts` (pure heuristics: HTTPS, viewport meta, contact form, phone via tel:/regex, email via mailto:/regex, German CTA phrase list, title/meta description), `analyze.ts` (orchestrates robots check → fetch → detect). `applyAnalysisToLead` (src/server/db/leads.ts) writes detection flags + `lastChecked` and fills phone/email only when the lead doesn't already have one — never overwrites existing data. Added `response_time_ms`, `has_title`, `has_meta_description` columns to `leads` (migration 0001) so scoring can be recomputed later without re-fetching. 24 new unit tests (47 total), all passing, no network in the suite. Verified live against two real business sites (pittroff.de, elektro-bleumortier.de) — correctly extracted phone/email, detected HTTPS/mobile/contact-form/title/meta, and measured real response times; confirmed `applyAnalysisToLead` refreshes signals without clobbering an existing phone number. Nothing for the user to configure manually.
+
+### 2026-08-09 — Milestone 4 complete
+Scoring engine in src/server/scoring/: `rules.ts` (13 default rules, additive to 100, see "Scoring Model" above), `score.ts` (`scoreLead` — pure, takes signals + enabled rules, returns overall/technical/performance scores and a reason for every applicable rule whether met or missed; `computePerformanceScore` — graded from response time), `seed-rules.ts` (`ensureDefaultScoringRules`, upsert-by-key, never clobbers a user-customized rule), `apply.ts` (`scoreAndSaveLead` — loads a lead's stored signals + current rules, recomputes, writes back; no site re-fetch needed). Added `scoring_rules.category` and `leads.industry_matched` columns (migration 0002) so re-scoring works from stored data alone. 11 new unit tests (58 total), all passing — cover a perfect lead (100/100/100), a no-website lead (22, only relevance rules apply), disabled rules being omitted, re-weighted rules taking effect, and the fallback-industry-match case. Seed script now calls the real scoring engine instead of hand-typed scores; verified output: fully-optimized fake lead scores 92, a site with missing HTTPS/mobile/CTA/contact-form scores 48, a no-website lead scores 22 — all with correct reason lists. Nothing for the user to configure manually.
