@@ -64,7 +64,7 @@ export function SearchForm() {
       body: JSON.stringify({ industry, location, limit, allowLarge }),
     });
 
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: string; search?: { id: number } };
     setSubmitting(false);
 
     if (!res.ok) {
@@ -72,7 +72,7 @@ export function SearchForm() {
       return;
     }
 
-    setActiveSearchId(body.search.id);
+    if (body.search) setActiveSearchId(body.search.id);
     router.refresh();
   }
 

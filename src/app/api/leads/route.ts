@@ -26,5 +26,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid query parameters." }, { status: 400 });
   }
 
-  return NextResponse.json(listLeads(parsed.data));
+  return NextResponse.json(await listLeads(parsed.data));
 }

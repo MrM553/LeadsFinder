@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, like, or, sql } from "drizzle-orm";
-import { db } from "./client";
+import { getDb } from "./get-db";
 import { leads, searches } from "./schema";
 import type { LeadStatus } from "@/types/lead";
 
@@ -20,7 +20,8 @@ const SORT_COLUMNS = {
   companyName: leads.companyName,
 } as const;
 
-export function listLeads(params: LeadListParams) {
+export async function listLeads(params: LeadListParams) {
+  const db = getDb();
   const pageSize = Math.min(Math.max(params.pageSize ?? 25, 1), 100);
   const page = Math.max(params.page ?? 1, 1);
 
@@ -38,50 +39,58 @@ export function listLeads(params: LeadListParams) {
   const sortColumn = SORT_COLUMNS[params.sortBy ?? "overallScore"];
   const orderFn = params.sortDir === "asc" ? asc : desc;
 
-  const rows = db
-    .select()
-    .from(leads)
-    .where(where)
-    .orderBy(orderFn(sortColumn))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize)
-    .all();
-
-  const totalRow = db
-    .select({ count: sql<number>`count(*)` })
-    .from(leads)
-    .where(where)
-    .get();
+  const [rows, totalRow] = await Promise.all([
+    db
+      .select()
+      .from(leads)
+      .where(where)
+      .orderBy(orderFn(sortColumn))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize)
+      .all(),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(where)
+      .get(),
+  ]);
 
   return { rows, total: totalRow?.count ?? 0, page, pageSize };
 }
 
-export function listDistinctIndustries(): string[] {
-  const rows = db.selectDistinct({ industry: leads.industry }).from(leads).all();
+export async function listDistinctIndustries(): Promise<string[]> {
+  const db = getDb();
+  const rows = await db.selectDistinct({ industry: leads.industry }).from(leads).all();
   return rows.map((r) => r.industry).sort();
 }
 
-export function getDashboardStats() {
-  const total = db.select({ count: sql<number>`count(*)` }).from(leads).get()?.count ?? 0;
-  const newCount =
+export async function getDashboardStats() {
+  const db = getDb();
+  const [totalRow, newRow, qualifiedRow, highScoreRow, recentSearches] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(leads).get(),
     db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
       .where(eq(leads.status, "NEW"))
-      .get()?.count ?? 0;
-  const qualified =
+      .get(),
     db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
       .where(eq(leads.status, "QUALIFIED"))
-      .get()?.count ?? 0;
-  const highScore =
+      .get(),
     db
       .select({ count: sql<number>`count(*)` })
       .from(leads)
       .where(gte(leads.overallScore, 70))
-      .get()?.count ?? 0;
-  const recentSearches = db.select().from(searches).orderBy(desc(searches.createdAt)).limit(5).all();
+      .get(),
+    db.select().from(searches).orderBy(desc(searches.createdAt)).limit(5).all(),
+  ]);
 
-  return { total, newCount, qualified, highScore, recentSearches };
+  return {
+    total: totalRow?.count ?? 0,
+    newCount: newRow?.count ?? 0,
+    qualified: qualifiedRow?.count ?? 0,
+    highScore: highScoreRow?.count ?? 0,
+    recentSearches,
+  };
 }

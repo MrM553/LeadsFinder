@@ -38,17 +38,17 @@ describe("processLeadsForSearch", () => {
       .returning()
       .get();
 
-    const good1 = upsertLead({
+    const good1 = await upsertLead({
       companyName: "Process Test Good 1",
       websiteUrl: "https://good1.example.de",
       industry: "Testberuf",
     });
-    const bad = upsertLead({
+    const bad = await upsertLead({
       companyName: "Process Test Broken",
       websiteUrl: "https://broken.example.de",
       industry: "Testberuf",
     });
-    const good2 = upsertLead({
+    const good2 = await upsertLead({
       companyName: "Process Test Good 2",
       websiteUrl: "https://good2.example.de",
       industry: "Testberuf",
@@ -78,7 +78,7 @@ describe("processLeadsForSearch", () => {
       .returning()
       .get();
 
-    const noWebsite = upsertLead({
+    const noWebsite = await upsertLead({
       companyName: "Process Test No Website",
       websiteUrl: null,
       industry: "Testberuf",

@@ -6,5 +6,5 @@ export async function GET() {
   const { response } = await requireApiSession();
   if (response) return response;
 
-  return NextResponse.json(getDashboardStats());
+  return NextResponse.json(await getDashboardStats());
 }

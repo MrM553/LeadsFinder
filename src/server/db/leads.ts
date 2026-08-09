@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "./client";
+import { getDb } from "./get-db";
 import { leads, type NewLead, type Lead } from "./schema";
 import { buildDedupKey } from "./dedupe";
 import type { WebsiteAnalysis } from "../analysis/analyze";
@@ -14,14 +14,15 @@ export type LeadDiscoveryInput = Omit<NewLead, "dedupKey" | "id" | "createdAt" |
  * dedup key (same domain, or same normalized name+city with no domain).
  * Never overwrites an existing non-null field with null.
  */
-export function upsertLead(input: LeadDiscoveryInput) {
+export async function upsertLead(input: LeadDiscoveryInput): Promise<Lead> {
+  const db = getDb();
   const dedupKey = buildDedupKey({
     websiteUrl: input.websiteUrl,
     companyName: input.companyName,
     city: input.city,
   });
 
-  const existing = db.select().from(leads).where(eq(leads.dedupKey, dedupKey)).get();
+  const existing = await db.select().from(leads).where(eq(leads.dedupKey, dedupKey)).get();
 
   if (!existing) {
     return db
@@ -47,8 +48,9 @@ export function upsertLead(input: LeadDiscoveryInput) {
  * always overwritten with the latest check; phone/email extracted from the
  * page only fill a gap — they never overwrite a value already on the lead.
  */
-export function applyAnalysisToLead(leadId: number, analysis: WebsiteAnalysis): Lead {
-  const existing = db.select().from(leads).where(eq(leads.id, leadId)).get();
+export async function applyAnalysisToLead(leadId: number, analysis: WebsiteAnalysis): Promise<Lead> {
+  const db = getDb();
+  const existing = await db.select().from(leads).where(eq(leads.id, leadId)).get();
   if (!existing) {
     throw new Error(`applyAnalysisToLead: no lead with id ${leadId}`);
   }
@@ -76,11 +78,13 @@ export function applyAnalysisToLead(leadId: number, analysis: WebsiteAnalysis): 
     .get();
 }
 
-export function getLeadById(leadId: number): Lead | undefined {
+export async function getLeadById(leadId: number): Promise<Lead | undefined> {
+  const db = getDb();
   return db.select().from(leads).where(eq(leads.id, leadId)).get();
 }
 
-export function updateLeadStatus(leadId: number, status: LeadStatus): Lead {
+export async function updateLeadStatus(leadId: number, status: LeadStatus): Promise<Lead> {
+  const db = getDb();
   return db
     .update(leads)
     .set({ status, updatedAt: new Date() })

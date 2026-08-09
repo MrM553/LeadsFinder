@@ -1,4 +1,4 @@
-import { db } from "../db/client";
+import { getDb } from "../db/get-db";
 import { searches } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { upsertLead } from "../db/leads";
@@ -28,6 +28,7 @@ export interface DiscoverLeadsResult {
 }
 
 export async function discoverLeads(input: DiscoverLeadsInput): Promise<DiscoverLeadsResult> {
+  const db = getDb();
   const limit = input.limit ?? DEV_DEFAULT_LIMIT;
 
   if (limit > MAX_LIMIT) {
@@ -40,7 +41,7 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
     );
   }
 
-  const search = db
+  const search = await db
     .insert(searches)
     .values({
       industry: input.industry,
@@ -54,7 +55,7 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
   try {
     const geocoded = await geocodeGermanLocation(input.location);
     if (!geocoded) {
-      return failSearch(search, `Could not geocode location "${input.location}" within Germany.`);
+      return await failSearch(search, `Could not geocode location "${input.location}" within Germany.`);
     }
 
     const { tags, matched } = resolveIndustryTags(input.industry);
@@ -66,11 +67,11 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
       if (collected.length >= limit) break;
       const leadInput = mapElementToLead(element, input.industry);
       if (!leadInput) continue;
-      const lead = upsertLead({ ...leadInput, foundInSearchId: search.id, industryMatched: matched });
+      const lead = await upsertLead({ ...leadInput, foundInSearchId: search.id, industryMatched: matched });
       collected.push(lead);
     }
 
-    const done = db
+    const done = await db
       .update(searches)
       .set({ status: "DONE", resultsFound: collected.length, updatedAt: new Date() })
       .where(eq(searches.id, search.id))
@@ -80,13 +81,15 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
     return { search: done, leads: collected, industryMatched: matched };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    failSearch(search, message);
+    await failSearch(search, message);
     throw err;
   }
 }
 
-function failSearch(search: Search, message: string): DiscoverLeadsResult {
-  db.update(searches)
+async function failSearch(search: Search, message: string): Promise<DiscoverLeadsResult> {
+  const db = getDb();
+  await db
+    .update(searches)
     .set({ status: "FAILED", errorMessage: message, updatedAt: new Date() })
     .where(eq(searches.id, search.id))
     .run();

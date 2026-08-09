@@ -19,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const leadId = parseId((await params).id);
   if (leadId === null) return NextResponse.json({ error: "Invalid lead id." }, { status: 400 });
 
-  return NextResponse.json(listNotesForLead(leadId));
+  return NextResponse.json(await listNotesForLead(leadId));
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -32,12 +32,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const leadId = parseId((await params).id);
   if (leadId === null) return NextResponse.json({ error: "Invalid lead id." }, { status: 400 });
 
-  const existing = getLeadById(leadId);
+  const existing = await getLeadById(leadId);
   if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
   const parsed = postSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
-  return NextResponse.json(addNote(leadId, parsed.data.text), { status: 201 });
+  return NextResponse.json(await addNote(leadId, parsed.data.text), { status: 201 });
 }

@@ -1,19 +1,20 @@
 import { eq } from "drizzle-orm";
-import { db } from "../db/client";
+import { getDb } from "../db/get-db";
 import { leads, scoringRules, type Lead } from "../db/schema";
 import { scoreLead, type LeadSignals } from "./score";
 import { ensureDefaultScoringRules } from "./seed-rules";
 
 /** Recomputes and persists a lead's score from its currently-stored signals — no site re-fetch required. */
-export function scoreAndSaveLead(leadId: number): Lead {
-  ensureDefaultScoringRules();
+export async function scoreAndSaveLead(leadId: number): Promise<Lead> {
+  const db = getDb();
+  await ensureDefaultScoringRules();
 
-  const lead = db.select().from(leads).where(eq(leads.id, leadId)).get();
+  const lead = await db.select().from(leads).where(eq(leads.id, leadId)).get();
   if (!lead) {
     throw new Error(`scoreAndSaveLead: no lead with id ${leadId}`);
   }
 
-  const rules = db.select().from(scoringRules).all();
+  const rules = await db.select().from(scoringRules).all();
 
   const signals: LeadSignals = {
     websiteUrl: lead.websiteUrl,

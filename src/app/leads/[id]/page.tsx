@@ -38,7 +38,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const leadId = Number(id);
   if (!Number.isInteger(leadId)) notFound();
 
-  const lead = getLeadById(leadId);
+  const lead = await getLeadById(leadId);
   if (!lead) notFound();
 
   return (

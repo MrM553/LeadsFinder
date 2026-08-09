@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { db } from "../db/client";
+import { getDb } from "../db/get-db";
 import { searches } from "../db/schema";
 import { getLeadById, applyAnalysisToLead } from "../db/leads";
 import { analyzeWebsite } from "../analysis/analyze";
@@ -10,30 +10,33 @@ import { scoreAndSaveLead } from "../scoring/apply";
  * failures per-lead so one broken site doesn't abort the whole batch.
  * Progress is written to `searches.resultsProcessed`/`resultsFailed` as it
  * goes so the UI can poll it. Intended to run detached from the request
- * that triggered the search (see the `void` call in the /api/search route);
- * on Cloudflare Workers this will need wrapping in `ctx.waitUntil()`
- * (Milestone 7 — Workers tears down execution once the response is sent
- * unless explicitly extended).
+ * that triggered the search (see the `void` call in the /api/search route),
+ * wrapped in `ctx.waitUntil()` there so Cloudflare Workers doesn't tear down
+ * execution once the response is sent.
  */
 export async function processLeadsForSearch(searchId: number, leadIds: number[]): Promise<void> {
+  const db = getDb();
+
   for (const leadId of leadIds) {
     try {
-      const lead = getLeadById(leadId);
+      const lead = await getLeadById(leadId);
       if (!lead) continue;
 
       if (lead.websiteUrl) {
         const analysis = await analyzeWebsite(lead.websiteUrl);
-        applyAnalysisToLead(leadId, analysis);
+        await applyAnalysisToLead(leadId, analysis);
       }
-      scoreAndSaveLead(leadId);
+      await scoreAndSaveLead(leadId);
     } catch (err) {
-      db.update(searches)
+      await db
+        .update(searches)
         .set({ resultsFailed: sql`${searches.resultsFailed} + 1` })
         .where(eq(searches.id, searchId))
         .run();
       console.error(`processLeadsForSearch: lead ${leadId} in search ${searchId} failed:`, err);
     } finally {
-      db.update(searches)
+      await db
+        .update(searches)
         .set({ resultsProcessed: sql`${searches.resultsProcessed} + 1`, updatedAt: new Date() })
         .where(eq(searches.id, searchId))
         .run();

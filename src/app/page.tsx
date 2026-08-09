@@ -23,7 +23,7 @@ export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const stats = getDashboardStats();
+  const stats = await getDashboardStats();
 
   return (
     <div className="flex min-h-screen flex-col">

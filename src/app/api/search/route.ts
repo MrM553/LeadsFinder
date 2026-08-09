@@ -5,6 +5,7 @@ import { discoverLeads, SearchLimitError } from "@/server/search/discover";
 import { processLeadsForSearch } from "@/server/search/process-leads";
 import { MAX_LIMIT } from "@/lib/search-limits";
 import { rateLimitOrResponse } from "@/server/rate-limit/api-rate-limit";
+import { runInBackground } from "@/server/runtime/background-task";
 
 const searchSchema = z.object({
   industry: z.string().min(1).max(100),
@@ -36,11 +37,13 @@ export async function POST(request: Request) {
 
     // Analysis + scoring run detached from this request so the response
     // isn't held open for the whole batch — the client polls
-    // GET /api/search/[id] for progress. (On Cloudflare Workers this call
-    // will need wrapping in ctx.waitUntil(); see process-leads.ts.)
-    void processLeadsForSearch(
-      result.search.id,
-      result.leads.map((l) => l.id)
+    // GET /api/search/[id] for progress. runInBackground keeps this alive
+    // past the response on Cloudflare Workers via ctx.waitUntil().
+    runInBackground(
+      processLeadsForSearch(
+        result.search.id,
+        result.leads.map((l) => l.id)
+      )
     );
 
     return NextResponse.json({

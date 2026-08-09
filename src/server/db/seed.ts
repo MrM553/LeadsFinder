@@ -11,8 +11,8 @@ import { upsertLead } from "./leads";
 import { scoreAndSaveLead } from "../scoring/apply";
 import { ensureDefaultScoringRules } from "../scoring/seed-rules";
 
-function seed() {
-  ensureDefaultScoringRules();
+async function seed() {
+  await ensureDefaultScoringRules();
 
   const search = db
     .insert(searches)
@@ -26,7 +26,7 @@ function seed() {
     .returning()
     .get();
 
-  const lead1 = upsertLead({
+  const lead1 = await upsertLead({
     companyName: "Musterdach Rosenheim GmbH",
     websiteUrl: "https://www.musterdach-rosenheim.de",
     industry: "Dachdecker",
@@ -52,7 +52,7 @@ function seed() {
     status: "NEW",
   });
 
-  const lead2 = upsertLead({
+  const lead2 = await upsertLead({
     companyName: "Beispiel Bedachungen Muster",
     websiteUrl: "https://beispiel-bedachungen-muster.de",
     industry: "Dachdecker",
@@ -78,7 +78,7 @@ function seed() {
     status: "NEW",
   });
 
-  const lead3 = upsertLead({
+  const lead3 = await upsertLead({
     companyName: "Handwerk Musterhaus",
     websiteUrl: null,
     industry: "Dachdecker",
@@ -93,7 +93,7 @@ function seed() {
   });
 
   for (const lead of [lead1, lead2, lead3]) {
-    scoreAndSaveLead(lead.id);
+    await scoreAndSaveLead(lead.id);
   }
 
   db.insert(notes)
@@ -106,13 +106,13 @@ function seed() {
   console.log(`Seeded 1 search and 3 leads (ids: ${lead1.id}, ${lead2.id}, ${lead3.id}).`);
 }
 
-function main() {
+async function main() {
   const existing = db.select().from(leads).all();
   if (existing.length > 0) {
     console.log(`Database already has ${existing.length} lead(s); skipping seed.`);
     return;
   }
-  seed();
+  await seed();
 }
 
 main();

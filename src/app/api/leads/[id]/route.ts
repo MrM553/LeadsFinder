@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const leadId = parseId((await params).id);
   if (leadId === null) return NextResponse.json({ error: "Invalid lead id." }, { status: 400 });
 
-  const lead = getLeadById(leadId);
+  const lead = await getLeadById(leadId);
   if (!lead) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json(lead);
 }
@@ -40,8 +40,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
-  const existing = getLeadById(leadId);
+  const existing = await getLeadById(leadId);
   if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
-  return NextResponse.json(updateLeadStatus(leadId, parsed.data.status));
+  return NextResponse.json(await updateLeadStatus(leadId, parsed.data.status));
 }
