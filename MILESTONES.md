@@ -30,13 +30,13 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [x] Duplicate handling logic (insert-or-update by dedup key) with a unit test
 
 ## Milestone 2 — Lead Search
-- [ ] Search provider decision finalized (see "External Services" in proposal)
-- [ ] Server-side search module: industry + location → candidate business results
-- [ ] German query construction (e.g. `"{industry} {location}"`, handles umlauts)
-- [ ] Result collection into `searches` + draft `leads` rows
-- [ ] Source URL tracked per result
-- [ ] Rate limiting on the search endpoint
-- [ ] Dev-time result limit default (5–10), configurable, with an explicit confirmation step before running a search for 100 results
+- [x] Search provider decision finalized (OpenStreetMap Overpass API)
+- [x] Server-side search module: industry + location → candidate business results
+- [x] German query construction (industry→OSM tag map with umlaut-tolerant matching + name-regex fallback for unmapped terms)
+- [x] Result collection into `searches` + draft `leads` rows
+- [x] Source URL tracked per result (OSM element permalink)
+- [x] Rate limiting on Nominatim (1 req/s) and Overpass (throttled + retry-with-backoff on 429/5xx)
+- [x] Dev-time result limit default (10), hard confirmation gate above 10, hard ceiling at 100
 
 ## Milestone 3 — Website Analysis
 - [ ] Fetch site with timeout, retry-once, robots.txt check
@@ -104,3 +104,6 @@ Next.js 16 (App Router, TS, Tailwind v4) scaffolded; shadcn/ui (base-nova preset
 
 ### 2026-08-09 — Milestone 1 complete
 Drizzle schema for `leads`, `searches`, `scoring_rules`, `notes` (src/server/db/schema.ts); shared status/enum types in src/types/lead.ts. Dedup key rule implemented and unit-tested (src/server/db/dedupe.ts, 9 passing tests): normalized domain when a website is known, else normalized "name|city". `upsertLead` (src/server/db/leads.ts) inserts new leads or merges into an existing one by dedup key without clobbering known fields with nulls. Initial migration generated and applied. Seed script (src/server/db/seed.ts) adds 1 fake search + 3 fake leads (clearly fictional "Muster..." names), skips if data already exists. Nothing for the user to configure manually.
+
+### 2026-08-09 — Milestone 2 complete
+Discovery pipeline in src/server/search/: `industry-map.ts` (German trade term → OSM tag, curated map + name-regex fallback for unmapped terms), `geocode.ts` (Nominatim, throttled to 1 req/s, Germany-scoped), `overpass.ts` (query builder + client, throttled, retries 429/502/503/504 up to 3x with backoff), `map-element.ts` (pure OSM element → lead mapper, never fabricates missing fields), `discover.ts` (orchestrates geocode → query → map → `upsertLead`, writes `searches` row with status/result count, enforces the confirmation-threshold and 100-lead ceiling). 14 new unit tests, all passing, no network calls in the test suite. Verified live against the real Overpass API: "Elektriker München" (limit 5) returned 5 real businesses with name/website/phone/email/source correctly captured; a "Dachdecker Rosenheim" test returned 0 results, which is a genuine OSM data-coverage gap for that specific craft tag in a smaller city, not a pipeline bug — worth knowing when picking test queries. Public Overpass instance does occasionally rate-limit (429) or time out (504) under load; the retry logic handles this. Nothing for the user to configure manually — no API keys involved.
