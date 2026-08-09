@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireApiSession } from "@/server/auth/api-guard";
 import { getLeadById, updateLeadStatus } from "@/server/db/leads";
 import { LEAD_STATUSES } from "@/types/lead";
+import { rateLimitOrResponse } from "@/server/rate-limit/api-rate-limit";
 
 const patchSchema = z.object({
   status: z.enum(LEAD_STATUSES),
@@ -26,8 +27,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiSession();
+  const { session, response } = await requireApiSession();
   if (response) return response;
+
+  const limited = rateLimitOrResponse(`mutate:${session.username}`, 60, 60_000);
+  if (limited) return limited;
 
   const leadId = parseId((await params).id);
   if (leadId === null) return NextResponse.json({ error: "Invalid lead id." }, { status: 400 });

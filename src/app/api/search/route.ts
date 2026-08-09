@@ -4,6 +4,7 @@ import { requireApiSession } from "@/server/auth/api-guard";
 import { discoverLeads, SearchLimitError } from "@/server/search/discover";
 import { processLeadsForSearch } from "@/server/search/process-leads";
 import { MAX_LIMIT } from "@/lib/search-limits";
+import { rateLimitOrResponse } from "@/server/rate-limit/api-rate-limit";
 
 const searchSchema = z.object({
   industry: z.string().min(1).max(100),
@@ -12,9 +13,17 @@ const searchSchema = z.object({
   allowLarge: z.boolean().optional(),
 });
 
+// The most expensive/abuse-prone endpoint: each call hits Nominatim +
+// Overpass + fetches every discovered site. Keep it tight.
+const RATE_LIMIT = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
 export async function POST(request: Request) {
-  const { response } = await requireApiSession();
+  const { session, response } = await requireApiSession();
   if (response) return response;
+
+  const limited = rateLimitOrResponse(`search:${session.username}`, RATE_LIMIT, RATE_LIMIT_WINDOW_MS);
+  if (limited) return limited;
 
   const body = await request.json().catch(() => null);
   const parsed = searchSchema.safeParse(body);

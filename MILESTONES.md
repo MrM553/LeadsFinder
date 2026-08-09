@@ -87,11 +87,11 @@ Work through milestones **sequentially**. Do not start a milestone until the pre
 - [ ] Error handling review for production paths
 
 ## Milestone 8 — Polish
-- [ ] UX pass on dashboard and search flow
-- [ ] Performance pass (query indexes, table pagination, etc.)
-- [ ] Security review (auth gaps, input validation, rate limits)
-- [ ] Test coverage review for scoring/dedup/auth
-- [ ] Documentation pass (README, CLAUDE.md accuracy check)
+- [x] UX pass on dashboard and search flow (minor — every page/page login/logout/status-change/notes flow was already browser-verified in earlier milestones)
+- [x] Performance pass (indexes on leads.status/overallScore/industry and notes.leadId; pagination already in place)
+- [x] Security review (auth gaps found and fixed, input validation confirmed, rate limits added)
+- [x] Test coverage review for scoring/dedup/auth (auth had none — added)
+- [x] Documentation pass (README, CLAUDE.md accuracy check)
 
 ---
 
@@ -157,3 +157,17 @@ Nothing for the user to configure manually.
 2. **Actually deploying.** Needs: a Cloudflare account, `wrangler login`, `wrangler d1 create leadfinder-db` (paste the returned ID into `wrangler.jsonc`), `wrangler secret put` for `AUTH_SECRET`/`DASHBOARD_USERNAME`/`DASHBOARD_PASSWORD_HASH` (generate a real password hash first — the dev one is a throwaway), then either `npm run cf:deploy` from WSL/Linux (this machine's Windows symlink issue) or — recommended — connect the GitHub repo in the Cloudflare dashboard and let Cloudflare's own Linux build infrastructure handle it.
 
 **What you need to do to unblock the rest of this milestone:** sign up for Cloudflare if you haven't, then let's continue together so the D1 client and first deploy can actually be tested against your real account instead of guessed at.
+
+### 2026-08-09 — Milestone 8 (polish) complete
+
+**Security:** Added rate limiting (`src/server/rate-limit/`) — 5 searches/min per user on `POST /api/search` (the most expensive endpoint: geocode + Overpass + a fetch per lead), 10 attempts/5min per username on login (brute-force protection), 60/min per user on status-change and note-add. In-memory, single-instance — noted as a limitation to revisit with a Durable Object/KV if this ever needs to hold under multiple concurrent Workers isolates. Capped username/password length in the login schema since they become rate-limit-map keys. Audited every API route and page for auth enforcement (a scripted grep, not just eyeballing) and found one real gap: `/leads` was a client component with no server-side session check — relied entirely on `middleware.ts`'s cookie-presence redirect. Not an actual data leak (all its data comes through the already-protected `/api/leads`), but inconsistent with every other page's defense-in-depth pattern, so it's now `getSession()` + `redirect()` wrapping a `LeadsTable` client component, matching `/` and `/leads/[id]`.
+
+**Testing:** Auth had zero test coverage — added `password.test.ts` (hash/verify round-trip, wrong password, malformed hash, case sensitivity) and `session.test.ts` (verify round-trip, wrong secret, tampered payload, malformed token, expiry) plus `limiter.test.ts` for the rate limiter itself. 16 new tests, 74 total.
+
+**Real bug found while testing the rate limiter's tests:** the same test-isolation fix from Milestone 6/7 (unique DB file per test run) wasn't enough — Vitest runs test files in parallel workers, and all workers were racing to delete/recreate the *same* filename (`leadfinder.test.db`), causing intermittent `table already exists` failures. Fixed by giving each worker a UUID-suffixed file (`vitest.setup.ts`) with proper teardown (added `closeDb()` to `client.ts` so Windows will actually release the file handle for cleanup — POSIX allows deleting an open file, Windows doesn't). Verified by running the full suite 3x in a row with zero flakes.
+
+**Performance:** Added indexes on `leads.status`, `leads.overallScore`, `leads.industry` (the `listLeads` filter/sort columns) and `notes.leadId` (migration 0004).
+
+**Docs:** README now covers the auth env-var setup step and Cloudflare scripts; CLAUDE.md and MILESTONES.md were kept up to date throughout rather than as a separate pass.
+
+Nothing for the user to configure manually beyond what Milestone 5 already flagged (replace the dev password before real use).

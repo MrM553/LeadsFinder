@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index } from "drizzle-orm/sqlite-core";
 import type { LeadStatus, WebsiteStatus, SearchStatus, ScoreReason } from "@/types/lead";
 
 export const searches = sqliteTable("searches", {
@@ -22,7 +22,9 @@ export const searches = sqliteTable("searches", {
     .default(sql`(unixepoch())`),
 });
 
-export const leads = sqliteTable("leads", {
+export const leads = sqliteTable(
+  "leads",
+  {
   id: integer("id").primaryKey({ autoIncrement: true }),
 
   // dedup key: normalized website domain, or normalized "name|city" when no domain
@@ -75,18 +77,28 @@ export const leads = sqliteTable("leads", {
   updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
-});
+  },
+  (table) => [
+    index("leads_status_idx").on(table.status),
+    index("leads_overall_score_idx").on(table.overallScore),
+    index("leads_industry_idx").on(table.industry),
+  ]
+);
 
-export const notes = sqliteTable("notes", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  leadId: integer("lead_id")
-    .notNull()
-    .references(() => leads.id, { onDelete: "cascade" }),
-  text: text("text").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
-});
+export const notes = sqliteTable(
+  "notes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    leadId: integer("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [index("notes_lead_id_idx").on(table.leadId)]
+);
 
 export const scoringRules = sqliteTable("scoring_rules", {
   id: integer("id").primaryKey({ autoIncrement: true }),

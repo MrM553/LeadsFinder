@@ -4,11 +4,19 @@ import { env } from "@/lib/env";
 import { verifyPassword } from "@/server/auth/password";
 import { createSessionToken } from "@/server/auth/session";
 import { SESSION_COOKIE_NAME } from "@/server/auth/constants";
+import { rateLimitOrResponse } from "@/server/rate-limit/api-rate-limit";
 
 const loginSchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
+  // Capped length: this value becomes part of an in-memory rate-limit key,
+  // so an unbounded string is a trivial way to grow that map.
+  username: z.string().min(1).max(200),
+  password: z.string().min(1).max(200),
 });
+
+// Brute-force protection: this is the one endpoint an attacker can hit
+// without already having a session.
+const LOGIN_LIMIT = 10;
+const LOGIN_WINDOW_MS = 5 * 60_000;
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -18,6 +26,9 @@ export async function POST(request: Request) {
   }
 
   const { username, password } = parsed.data;
+
+  const limited = rateLimitOrResponse(`login:${username}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
+  if (limited) return limited;
 
   // Compare username with a fixed-time-ish check; the real protection here
   // is the scrypt+timingSafeEqual password check below.

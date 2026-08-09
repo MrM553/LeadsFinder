@@ -13,3 +13,8 @@ sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
+
+/** Closes the underlying connection — used by tests to release the file handle before cleanup. */
+export function closeDb(): void {
+  sqlite.close();
+}
