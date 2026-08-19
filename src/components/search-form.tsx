@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CONFIRMATION_THRESHOLD, DEV_DEFAULT_LIMIT, MAX_LIMIT } from "@/lib/search-limits";
 
@@ -23,6 +24,7 @@ export function SearchForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [industry, setIndustry] = useState("");
+  const [broad, setBroad] = useState(false);
   const [location, setLocation] = useState("");
   const [limit, setLimit] = useState(DEV_DEFAULT_LIMIT);
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +64,7 @@ export function SearchForm() {
     const res = await fetch("/api/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ industry, location, limit, allowLarge }),
+      body: JSON.stringify({ industry: broad ? undefined : industry, location, limit, allowLarge }),
     });
 
     const body = (await res.json().catch(() => ({}))) as {
@@ -113,7 +115,8 @@ export function SearchForm() {
               placeholder="Dachdecker"
               value={industry}
               onChange={(e) => setIndustry(e.target.value)}
-              required
+              disabled={broad}
+              required={!broad}
               className="w-48"
             />
           </div>
@@ -144,6 +147,16 @@ export function SearchForm() {
             {submitting ? "Searching…" : "Search"}
           </Button>
         </form>
+        <div className="mt-3 flex items-center gap-2">
+          <Checkbox
+            id="broad"
+            checked={broad}
+            onCheckedChange={(checked) => setBroad(checked === true)}
+          />
+          <Label htmlFor="broad" className="text-sm font-normal text-muted-foreground">
+            Search all business types (don&apos;t restrict to one industry)
+          </Label>
+        </div>
         {needsConfirmation && (
           <p className="mt-2 text-sm text-muted-foreground">
             Above {CONFIRMATION_THRESHOLD} results you&apos;ll be asked to confirm before this runs.

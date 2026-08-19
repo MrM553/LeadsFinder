@@ -51,7 +51,11 @@ export function buildOverpassQuery(
   const clauses =
     tags.length > 0
       ? tags.map((t) => `  nwr["${t.key}"="${t.value}"](${bboxStr});`).join("\n")
-      : `  nwr[~"^(${FALLBACK_CATEGORIES})$"~"."]["name"~"${escapeOverpassRegex(fallbackNameTerm ?? "")}",i](${bboxStr});`;
+      : fallbackNameTerm
+        ? `  nwr[~"^(${FALLBACK_CATEGORIES})$"~"."]["name"~"${escapeOverpassRegex(fallbackNameTerm)}",i](${bboxStr});`
+        : // Broad search: no industry term at all — any named business-like
+          // entity in the area, not filtered by name text.
+          `  nwr[~"^(${FALLBACK_CATEGORIES})$"~"."]["name"](${bboxStr});`;
 
   return `[out:json][timeout:${QUERY_TIMEOUT_S}];\n(\n${clauses}\n);\nout center tags;`;
 }

@@ -8,7 +8,8 @@ import { rateLimitOrResponse } from "@/server/rate-limit/api-rate-limit";
 import { runInBackground } from "@/server/runtime/background-task";
 
 const searchSchema = z.object({
-  industry: z.string().min(1).max(100),
+  // Omit/empty for a broad search across all business types.
+  industry: z.string().max(100).optional(),
   location: z.string().min(1).max(100),
   limit: z.number().int().min(1).max(MAX_LIMIT).optional(),
   allowLarge: z.boolean().optional(),

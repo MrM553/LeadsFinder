@@ -106,3 +106,59 @@ export function resolveIndustryTags(industry: string): IndustryResolution {
   if (mapped) return { tags: mapped, matched: true };
   return { tags: [], matched: false };
 }
+
+/**
+ * Reverse of the map above: OSM tag value -> a readable German label, used
+ * for broad searches (see discover.ts) where each result's actual category
+ * varies per business rather than being the user's single search term.
+ */
+const OSM_VALUE_TO_LABEL: Record<string, string> = {
+  roofer: "Dachdecker",
+  electrician: "Elektriker",
+  plumber: "Sanitär/Installateur",
+  tax_advisor: "Steuerberater",
+  painter: "Maler",
+  carpenter: "Tischler/Schreiner",
+  mason: "Maurer",
+  hvac: "Heizungsbau",
+  lawyer: "Rechtsanwalt",
+  dentist: "Zahnarzt",
+  doctors: "Arzt",
+  veterinary: "Tierarzt",
+  physiotherapist: "Physiotherapeut",
+  hairdresser: "Friseur",
+  beauty: "Kosmetikstudio",
+  car_repair: "Autowerkstatt",
+  driving_school: "Fahrschule",
+  gardener: "Gärtner",
+  tiler: "Fliesenleger",
+  glaziery: "Glaser",
+  locksmith: "Schlosser",
+  estate_agent: "Immobilienmakler",
+  insurance: "Versicherung",
+  pharmacy: "Apotheke",
+  bakery: "Bäckerei",
+  butcher: "Metzgerei",
+  optician: "Optiker",
+  notary: "Notar",
+  cleaning: "Gebäudereinigung",
+  funeral_directors: "Bestatter",
+};
+
+const BUSINESS_CATEGORY_KEYS = ["craft", "shop", "office", "amenity", "healthcare", "leisure"] as const;
+
+function humanizeTagValue(value: string): string {
+  return value
+    .split("_")
+    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
+
+/** Derives a readable industry label from whichever business-category tag an OSM element actually has. */
+export function deriveIndustryLabel(tags: Record<string, string>): string {
+  for (const key of BUSINESS_CATEGORY_KEYS) {
+    const value = tags[key];
+    if (value) return OSM_VALUE_TO_LABEL[value] ?? humanizeTagValue(value);
+  }
+  return "Sonstiges";
+}

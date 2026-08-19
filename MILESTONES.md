@@ -183,3 +183,14 @@ Diagnosed a real user report ("H. Zöllner Dachdeckermeister has a website but w
 Verified locally: "Dachdecker Rosenheim" (previously a confirmed 0-result case) now finds a real roofer in nearby Bad Aibling after widening; "Zahnarzt Rosenheim" (previously unmapped) now correctly tag-matches and finds 3 real dentists. 2 new unit tests, 76 total.
 
 **Explicitly not done** — discussed with the user and deferred: adding a paid/broader business-listing provider (e.g. Google Places) to catch businesses OSM never had. That's a real architecture change (cost per query, new API key, data-retention terms to handle carefully) and a deliberate departure from the fully-free design from Milestone 2 — needs its own decision, not bundled into this pass.
+
+### 2026-08-09 — Broad ("all business types") search
+
+User request: a way to search a location without restricting to one industry. Added:
+
+- `discoverLeads`'s `industry` input is now optional. Omitted/blank triggers a broad search — no tag filter, no name-text filter, just "any named business-like entity in the area." `searches.industry` stores "Alle Branchen" for these; each individual lead gets its own derived label (`deriveIndustryLabel` in `industry-map.ts` — reverse-maps the element's actual `craft`/`shop`/`office`/`amenity`/`healthcare`/`leisure` tag value to a German term, or humanizes the raw OSM value if none is known).
+- New checkbox in the dashboard search form ("Search all business types") disables the industry field and sends no industry to the API.
+- Also fixed while building this: `map-element.ts` now also checks the `url`/`contact:url` OSM tag variants for a website (not just `website`/`contact:website`) — a small piece of the "website exists but wasn't shown" class of complaint.
+- **Caught during my own live testing before shipping**: the first version of broad search returned parking lots and benches as "leads" (the `amenity`/`leisure` categories cover public infrastructure, not just businesses). Added `isLikelyNonBusiness()` — an exclude-list of common non-business `amenity`/`leisure` values (parking, benches, waste bins, parks, playgrounds, etc.) — applied during element mapping. Re-verified live: a Rosenheim broad search now returns a supermarket, a restaurant, a pharmacy, a fitness studio — no more infrastructure noise.
+
+6 new unit tests (82 total). Verified live both before and after the non-business fix.

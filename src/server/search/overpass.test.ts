@@ -31,4 +31,10 @@ describe("buildOverpassQuery", () => {
     const query = buildOverpassQuery([], bbox, 'Café "Test" (Bio)');
     expect(query).toContain('Café \\"Test\\" \\(Bio\\)');
   });
+
+  it("builds a broad any-named-business query when no tags and no term are given", () => {
+    const query = buildOverpassQuery([], bbox);
+    expect(query).toContain('nwr[~"^(shop|craft|office|amenity|healthcare|leisure)$"~"."]["name"](47.8,12.1,47.9,12.2);');
+    expect(query).not.toContain("~\",i]");
+  });
 });

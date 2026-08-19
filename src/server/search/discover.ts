@@ -3,7 +3,7 @@ import { searches } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { upsertLead } from "../db/leads";
 import { geocodeGermanLocation, type GeocodeResult } from "./geocode";
-import { resolveIndustryTags } from "./industry-map";
+import { resolveIndustryTags, type OsmTagFilter } from "./industry-map";
 import { buildOverpassQuery, runOverpassQuery } from "./overpass";
 import { mapElementToLead } from "./map-element";
 import type { Lead, Search } from "../db/schema";
@@ -13,8 +13,12 @@ export { DEV_DEFAULT_LIMIT, CONFIRMATION_THRESHOLD, MAX_LIMIT };
 
 export class SearchLimitError extends Error {}
 
+/** Shown in the searches table/UI when no industry was specified (broad search). */
+const BROAD_SEARCH_LABEL = "Alle Branchen";
+
 export interface DiscoverLeadsInput {
-  industry: string;
+  /** Omit (or empty string) for a broad search across all business types. */
+  industry?: string;
   location: string;
   limit?: number;
   /** Must be explicitly true to run a search above CONFIRMATION_THRESHOLD. */
@@ -43,6 +47,7 @@ function expandBbox(
 export async function discoverLeads(input: DiscoverLeadsInput): Promise<DiscoverLeadsResult> {
   const db = await getDb();
   const limit = input.limit ?? DEV_DEFAULT_LIMIT;
+  const industryTerm = input.industry?.trim() || null;
 
   if (limit > MAX_LIMIT) {
     throw new SearchLimitError(`Requested limit ${limit} exceeds the maximum of ${MAX_LIMIT}.`);
@@ -57,7 +62,7 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
   const search = await db
     .insert(searches)
     .values({
-      industry: input.industry,
+      industry: industryTerm ?? BROAD_SEARCH_LABEL,
       location: input.location,
       requestedCount: limit,
       status: "RUNNING",
@@ -71,13 +76,15 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
       return await failSearch(search, `Could not geocode location "${input.location}" within Germany.`);
     }
 
-    const { tags, matched } = resolveIndustryTags(input.industry);
-    const { elements, areaExpanded } = await runWithAreaWiden(tags, geocoded, input.industry);
+    // A broad search (no industry given) trivially "matches" — there's no
+    // specific term it could have missed.
+    const { tags, matched } = industryTerm ? resolveIndustryTags(industryTerm) : { tags: [], matched: true };
+    const { elements, areaExpanded } = await runWithAreaWiden(tags, geocoded, industryTerm);
 
     const collected: Lead[] = [];
     for (const element of elements) {
       if (collected.length >= limit) break;
-      const leadInput = mapElementToLead(element, input.industry);
+      const leadInput = mapElementToLead(element, industryTerm);
       if (!leadInput) continue;
       const lead = await upsertLead({ ...leadInput, foundInSearchId: search.id, industryMatched: matched });
       collected.push(lead);
@@ -100,18 +107,18 @@ export async function discoverLeads(input: DiscoverLeadsInput): Promise<Discover
 
 /** Runs the Overpass query; if the initial area has no results, retries once with a wider radius. */
 async function runWithAreaWiden(
-  tags: ReturnType<typeof resolveIndustryTags>["tags"],
+  tags: OsmTagFilter[],
   geocoded: GeocodeResult,
-  industry: string
+  industryTerm: string | null
 ): Promise<{ elements: Awaited<ReturnType<typeof runOverpassQuery>>; areaExpanded: boolean }> {
-  const query = buildOverpassQuery(tags, geocoded.boundingBox, industry);
+  const query = buildOverpassQuery(tags, geocoded.boundingBox, industryTerm ?? undefined);
   const elements = await runOverpassQuery(query);
   if (elements.length > 0) {
     return { elements, areaExpanded: false };
   }
 
   const widerBbox = expandBbox(geocoded.boundingBox, WIDEN_MARGIN_DEGREES);
-  const widerQuery = buildOverpassQuery(tags, widerBbox, industry);
+  const widerQuery = buildOverpassQuery(tags, widerBbox, industryTerm ?? undefined);
   const widerElements = await runOverpassQuery(widerQuery);
   return { elements: widerElements, areaExpanded: widerElements.length > 0 };
 }
